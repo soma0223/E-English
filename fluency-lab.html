@@ -212,6 +212,20 @@ table.map .full { color: var(--speech); font-size: 1rem; }
 table.map .half { color: var(--speech); opacity: .6; font-size: .9rem; }
 table.map .none { color: var(--line); }
 
+/* 4/3/2 rounds */
+.rin { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rin h3 { margin: 0; font-size: .88rem; display: flex; justify-content: space-between; gap: 8px; }
+.rin h3 span { font-family: var(--f-data); font-size: .75rem; color: var(--muted); font-weight: 400; }
+.rin textarea { min-height: 70px; }
+.rin .file { padding: 8px 10px; font-size: .85rem; }
+table.map.cmp { min-width: 0; font-size: .76rem; }
+table.cmp td, table.cmp th { text-align: right; font-family: var(--f-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.cmp td:first-child, table.cmp th:first-child { font-family: var(--f-body); }
+table.cmp .up { color: var(--speech); font-weight: 600; }
+table.cmp .down { color: var(--long); font-weight: 600; }
+table.cmp .flat { color: var(--muted); }
+.mini { display: block; height: 4px; border-radius: 2px; background: var(--speech); margin-top: 3px; margin-left: auto; opacity: .7; }
+
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -427,8 +441,33 @@ audio { width: 100%; }
         </div>
         <details>
           <summary>やり方と理由</summary>
-          <p class="hint">同じ内容を 4分 → 3分 → 2分 で3回話します。内容は削らず、同じことをより速く言うのがルール。2回目以降は「何を言うか」を考える負担が減るので、その余裕が「どう速く言うか」に回り、流暢さが伸びます（Nation; Arevart &amp; Nation, 1991）。各ラウンドをボイスメモで録って「測る」に入れると、速さとラン長の伸びが数字で見えます。</p>
+          <p class="hint">同じ内容を 4分 → 3分 → 2分 で3回話します。内容は削らず、同じことをより速く言うのがルール。2回目以降は「何を言うか」を考える負担が減るので、その余裕が「どう速く言うか」に回り、流暢さが伸びます（Nation; Arevart &amp; Nation, 1991）。くり返しで身についた流暢さは、別の話題にも持ち越されるという研究もあります（de Jong &amp; Perfetti, 2011）。一方で、急ぐと正確さは上がりにくいことも分かっているので（Boers, 2014）、正確さは「測る」の添削で補います。</p>
         </details>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">ROUNDS</span>3ラウンドを比べる</h2>
+      <div class="panel">
+        <p class="hint">各ラウンドをボイスメモで録って、ここに入れてください。文字起こしも貼ると、速さ・ラン長・内容の維持まで出ます。</p>
+        <div class="two" id="r-inputs"></div>
+        <div class="map-wrap"><table class="map cmp" id="r-table"></table></div>
+        <div class="notes" id="r-notes"></div>
+        <div class="row">
+          <button id="r-ai" disabled>Claude に比べてもらう</button>
+          <button class="ghost" id="r-save" disabled>記録する</button>
+          <button class="quiet" id="r-clear">入力をクリア</button>
+        </div>
+        <p class="status" id="r-status" role="status"></p>
+        <div class="feedback" id="r-feedback" hidden></div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">LOG</span>4/3/2 の記録</h2>
+      <div class="panel">
+        <ul class="hist" id="r-hist"></ul>
+        <p class="empty" id="r-hist-empty">まだ記録はありません。3ラウンドを測って「記録する」を押すと、ここに並びます。</p>
       </div>
     </section>
   </div>
@@ -510,6 +549,7 @@ audio { width: 100%; }
     { id: "432", ja: "4/3/2 トレーニング", en: "Same story three times: 4 min → 3 min → 2 min.", note: "各ラウンドを録音して測ると、回を追うごとに速さとラン長が上がるのが見えます。" },
   ];
   let db = null, sample = null;
+  const dbReady = [];
 
   // ================= TODAY =================
   // skills: [listening, pronunciation, fluency, accuracy, vocab, interaction]  2 = main, 1 = some
@@ -1123,6 +1163,153 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
   $("#t-reset").addEventListener("click", () => { tRunning = false; cancelAnimationFrame(tRaf); releaseWake(); tRound = 0; tLeft = ROUNDS[0]; tFinished = [false, false, false]; $("#t-status").textContent = "ラウンド1：4分で話します。準備ができたら開始。"; renderTimer(); });
   renderTimer();
 
+  // ---------- 4/3/2: compare the three rounds ----------
+  const RN = [0, 1, 2].map(() => ({ audio: null, text: "", r: null, file: "" }));
+  const RMET = [
+    { k: "wpm", ja: "話す速さ", u: "語/分", d: 0, hi: true },
+    { k: "art", ja: "調音速度", u: "語/分", d: 0, hi: true },
+    { k: "mlr", ja: "平均ラン長", u: "語", d: 1, hi: true },
+    { k: "pausesPerMin", ja: "沈黙の頻度", u: "回/分", d: 1, hi: false },
+    { k: "longPerMin", ja: "1秒以上の沈黙", u: "回/分", d: 1, hi: false },
+    { k: "repeats", ja: "言い直し", u: "回", d: 0, hi: false },
+    { k: "words", ja: "単語数", u: "語", d: 0, hi: null },
+    { k: "total", ja: "長さ", u: "秒", d: 0, hi: null },
+  ];
+  $("#r-inputs").innerHTML = ROUNDS.map((sec, i) => `
+    <div class="rin">
+      <h3>ラウンド${i + 1}<span>${sec / 60}分</span></h3>
+      <div class="row"><span class="file"><input type="file" id="r-file-${i}" data-i="${i}" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac" aria-label="ラウンド${i + 1}の録音">録音を選ぶ</span></div>
+      <span class="filename" id="r-name-${i}">未選択</span>
+      <label for="r-text-${i}" class="hint">文字起こし</label>
+      <textarea id="r-text-${i}" data-i="${i}" placeholder="直さずに貼る"></textarea>
+    </div>`).join("");
+
+  function rCompute(i) {
+    const x = RN[i];
+    if (!x.audio && !x.text.trim()) { x.r = null; return; }
+    const t = analyzeText(x.text);
+    const r = compute(x.audio, t, 0);
+    r.repeatsList = r.repeats; r.repeats = t.repeats.length;
+    r.longPerMin = r.longPauses != null && r.total ? r.longPauses / (r.total / 60) : null;
+    r.transcript = x.text.trim();
+    x.r = r;
+  }
+  function rRender() {
+    const rs = RN.map((x) => x.r);
+    const any = rs.some(Boolean);
+    const val = (r, m) => r && r[m.k] != null && isFinite(r[m.k]) ? r[m.k] : null;
+    let html = `<thead><tr><th>指標</th><th>R1</th><th>R2</th><th>R3</th><th>変化</th></tr></thead><tbody>`;
+    for (const m of RMET) {
+      const vs = rs.map((r) => val(r, m));
+      const max = Math.max(...vs.filter((v) => v != null), 0);
+      const cells = vs.map((v) => `<td>${v == null ? "—" : fmt(v, m.d)}${v != null && max > 0 && m.hi !== null ? `<span class="mini" style="width:${Math.max(6, v / max * 100)}%"></span>` : ""}</td>`).join("");
+      let ch = `<td class="flat">—</td>`;
+      if (vs[0] != null && vs[2] != null) {
+        if (m.k === "words") ch = `<td class="${vs[2] / Math.max(1, vs[0]) >= 0.8 ? "up" : "down"}">${Math.round(vs[2] / Math.max(1, vs[0]) * 100)}%</td>`;
+        else if (m.hi === null) ch = `<td class="flat">${fmt(vs[2] - vs[0], m.d)}</td>`;
+        else {
+          const diff = vs[2] - vs[0], good = m.hi ? diff > 0 : diff < 0;
+          const txt = vs[0] ? `${diff >= 0 ? "+" : ""}${Math.round(diff / vs[0] * 100)}%` : `${diff >= 0 ? "+" : ""}${fmt(diff, m.d)}`;
+          ch = `<td class="${Math.abs(diff) < 1e-9 ? "flat" : good ? "up" : "down"}">${txt}</td>`;
+        }
+      }
+      html += `<tr><td>${m.ja}<br><span class="hint" style="font-size:.7rem">${m.u}</span></td>${cells}${ch}</tr>`;
+    }
+    $("#r-table").innerHTML = html + "</tbody>";
+    // notes grounded in the 4/3/2 rules
+    const n = [];
+    const [a, , c] = rs;
+    if (!any) n.push("録音か文字起こしを入れると、ここに3ラウンドの比較が出ます。");
+    if (a && c && a.words && c.words) {
+      const keep = c.words / a.words;
+      n.push(keep >= 0.8 ? `内容の維持：R3 は R1 の ${Math.round(keep * 100)}% の単語数。同じ話を短い時間で言えています。` : `内容の維持：R3 は R1 の ${Math.round(keep * 100)}% まで減っています。4/3/2 は「内容を削らずに速くする」練習なので、次は話の要素を残したまま言ってみてください。`);
+    }
+    if (a && c && a.wpm != null && c.wpm != null) {
+      const g = (c.wpm - a.wpm) / a.wpm;
+      n.push(g >= 0.15 ? `話す速さが ${Math.round(g * 100)}% 上がりました。くり返しの効果がはっきり出ています。` : g > 0 ? `話す速さは ${Math.round(g * 100)}% の伸び。R1 で話の骨組みをもう少しはっきり決めておくと、R2・R3 で伸びやすくなります。` : "話す速さが上がっていません。R2・R3 では言い直しを減らし、R1 でうまく言えた言い回しをそのまま使うことを意識してください。");
+    }
+    if (a && c && a.mlr != null && c.mlr != null && c.mlr > a.mlr) n.push(`一息で話せる長さが ${fmt(a.mlr, 1)} → ${fmt(c.mlr, 1)} 語に伸びました。くり返した言い回しが「かたまり」になってきています。`);
+    RN.forEach((x, i) => { if (x.r && x.r.total && x.audio && x.r.total < ROUNDS[i] * 0.6) n.push(`ラウンド${i + 1} は ${fmt(x.r.total)} 秒で、制限時間（${ROUNDS[i]} 秒）より大幅に短めです。時間いっぱい話し続けるのが基本です。`); });
+    $("#r-notes").innerHTML = n.map((t) => `<div>${esc(t)}</div>`).join("");
+    const full = rs.filter(Boolean).length >= 2;
+    $("#r-save").disabled = !full || !db;
+    $("#r-ai").disabled = !full || !sample || !rs.some((r) => r && r.words);
+  }
+  $("#r-inputs").addEventListener("change", async (e) => {
+    const el = e.target; if (!el.id || !el.id.startsWith("r-file-")) return;
+    const i = Number(el.dataset.i), f = el.files && el.files[0];
+    RN[i].audio = null; $("#r-name-" + i).textContent = f ? "解析中…" : "未選択";
+    if (f) {
+      try { RN[i].audio = await analyzeAudio(f); RN[i].file = f.name; $("#r-name-" + i).textContent = `${f.name}（${RN[i].audio.duration.toFixed(0)}秒）`; }
+      catch (err) { $("#r-name-" + i).textContent = "読み込めませんでした。m4a / mp3 / wav で試してください。"; }
+    }
+    rCompute(i); rRender();
+  });
+  let rTimer = 0;
+  $("#r-inputs").addEventListener("input", (e) => {
+    const el = e.target; if (!el.id || !el.id.startsWith("r-text-")) return;
+    const i = Number(el.dataset.i); RN[i].text = el.value;
+    clearTimeout(rTimer); rTimer = setTimeout(() => { rCompute(i); rRender(); }, 350);
+  });
+  $("#r-clear").addEventListener("click", () => {
+    RN.forEach((x, i) => { x.audio = null; x.text = ""; x.r = null; $("#r-file-" + i).value = ""; $("#r-text-" + i).value = ""; $("#r-name-" + i).textContent = "未選択"; });
+    $("#r-feedback").hidden = true; rFeedback = ""; $("#r-status").textContent = ""; rRender();
+  });
+
+  let rFeedback = "";
+  $("#r-ai").addEventListener("click", async () => {
+    if (!sample) return;
+    $("#r-ai").disabled = true; $("#r-status").textContent = "Claude が3ラウンドを比べています…";
+    const tName = (TOPICS.find((x) => x.id === tSel.value) || {}).en || "";
+    const body = RN.map((x, i) => x.r ? `■ ラウンド${i + 1}（${ROUNDS[i] / 60}分）\n${metricsText(Object.assign({}, x.r, { repeats: x.r.repeatsList || [] }))}\n文字起こし:\n"""\n${x.r.transcript || "(なし)"}\n"""` : `■ ラウンド${i + 1}: 記録なし`).join("\n\n");
+    const prompt = `あなたは第二言語習得の研究に詳しいスピーキングコーチです。学習者は日本の大学生で CEFR B1、目標は Google の英語面接。
+学習者は Nation の 4/3/2 トレーニング（同じ内容を 4分→3分→2分 で3回話す）を行いました。各ラウンドの指標と文字起こし（音声入力なので句読点は不正確。誤りとして扱わない）を比べて、日本語で次の形式で答えてください。見出しは【】で囲んで単独の行に置き、Markdown 記号（#, *, |, -）は使わないこと。全体で400字程度。
+【流暢さの変化】速さ・沈黙・ラン長がどう変わったか。数字に触れる。
+【内容の維持】R1 の要素が R3 まで残っているか。抜けた要素があれば具体的に。
+【定着してきた言い回し】ラウンドを重ねて安定して言えるようになった表現を2〜3個（英語のまま）。
+【まだ残っている誤り】R3 にも残る誤りを最大3個。「× → ○」の形式。
+【次回の4/3/2で意識すること】1つだけ。
+
+お題: ${tName}
+
+${body}`;
+    try {
+      const res = await sample(prompt, { cache: false, onText: ({ text }) => { rFeedback = text; showRFeedback(text); } });
+      rFeedback = res.text; showRFeedback(res.text);
+      $("#r-status").textContent = "比較が届きました。「記録する」で一緒に保存できます。";
+    } catch (e) {
+      $("#r-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってからもう一度。" : "比較を取得できませんでした。もう一度押してください。";
+    } finally { rRender(); }
+  });
+  function showRFeedback(text) {
+    const box = $("#r-feedback"); box.hidden = false;
+    box.innerHTML = esc(text).replace(/^\s*【([^】]+)】\s*/gm, "<h4>$1</h4>").replace(/\n{2,}/g, "\n");
+  }
+
+  $("#r-save").addEventListener("click", async () => {
+    if (!db) return;
+    $("#r-save").disabled = true;
+    const pick = (r) => r ? { wpm: r.wpm ?? null, art: r.art ?? null, mlr: r.mlr ?? null, pausesPerMin: r.pausesPerMin ?? null, longPerMin: r.longPerMin ?? null, repeats: r.repeats ?? 0, words: r.words ?? 0, total: r.total ?? null, transcript: (r.transcript || "").slice(0, 6000) } : null;
+    try {
+      await db.collection("fluency432").add({ createdAt: Date.now(), topic: (TOPICS.find((x) => x.id === tSel.value) || {}).ja || "", rounds: RN.map((x) => pick(x.r)), feedback: (rFeedback || "").slice(0, 8000) });
+      $("#r-status").textContent = "記録しました。今日の「4/3/2」にチェックを入れました。";
+      const key = ymd(new Date()); if (!(days[key] && days[key].items && days[key].items.fluency)) setItem(new Date(), "fluency", true);
+    } catch (e) { $("#r-status").textContent = "記録できませんでした。"; $("#r-save").disabled = false; }
+  });
+  function renderR432History(rows) {
+    $("#r-hist-empty").hidden = rows.length > 0;
+    $("#r-hist").innerHTML = rows.map((s) => {
+      const d = new Date(s.createdAt), r = s.rounds || [], a = r[0] || {}, c = r[2] || r[1] || {};
+      const g = a.wpm && c.wpm ? Math.round((c.wpm - a.wpm) / a.wpm * 100) : null;
+      return `<li><span>${esc(s.topic || "")}</span><span class="nums">${fmt(a.wpm)} → ${fmt(c.wpm)} 語/分<br>${g == null ? "" : `${g >= 0 ? "+" : ""}${g}%`} · ラン ${fmt(a.mlr, 1)} → ${fmt(c.mlr, 1)}</span><span class="when">${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</span></li>`;
+    }).join("");
+  }
+  dbReady.push(() => {
+    rRender();
+    db.collection("fluency432").orderBy("createdAt", "desc").limit(30).onSnapshot((snap) => renderR432History(snap.docs.map((x) => x.data()).filter(Boolean)), () => { $("#r-hist-empty").textContent = "記録を読み込めませんでした。"; });
+  });
+  rRender();
+
   // ================= SHADOW =================
   const player = $("#player"); let A = null, B = null, objUrl = null;
   $("#s-file").addEventListener("change", (e) => {
@@ -1184,6 +1371,7 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     sample = s;
     if (current && $("#sample-banner").hidden) $("#ai").disabled = !sample || !current.words;
     if (!s) $("#ai").title = "この表示では Claude の添削は使えません";
+    rRender();
   });
 
   use("db").then((d) => {
@@ -1203,6 +1391,7 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
       chunks = snap.docs.map((x) => Object.assign({ id: x.id }, x.data() || {}));
       chunksLoaded = true; renderCard(); renderChunkList();
     }, () => { $("#card").innerHTML = `<p class="empty">チャンク帳を読み込めませんでした。</p>`; });
+    dbReady.forEach((f) => { try { f(); } catch (e) {} });
   });
 
   // ================= sample result for the measure view =================
