@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one narrow lab notebook column. The speech timeline (runs vs. pauses) is the signature element. */
+/* Layout: one narrow lab-notebook column with a sticky tab bar. Signature elements: the speech timeline (runs vs. pauses) and the 57-day study grid. */
 :root {
   --bg: #f3f5f2;
   --surface: #ffffff;
@@ -33,33 +33,47 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body {
-  background: var(--bg); color: var(--ink);
-  font-family: var(--f-body); font-size: 15px; line-height: 1.65;
-}
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.65; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 .wrap {
   max-width: 760px; margin: 0 auto;
-  padding-block: 28px 64px;
+  padding-block: 24px 64px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  display: flex; flex-direction: column; gap: 28px;
+  display: flex; flex-direction: column; gap: 22px;
 }
-header { display: flex; flex-direction: column; gap: 6px; }
+header { display: flex; flex-direction: column; gap: 4px; }
 h1 { font-family: var(--f-display); font-weight: 400; font-size: 2rem; line-height: 1.15; margin: 0; letter-spacing: .01em; }
 h1 .dot { color: var(--speech); }
-.lede { margin: 0; color: var(--muted); max-width: 60ch; }
+.lede { margin: 0; color: var(--muted); max-width: 60ch; font-size: .9rem; }
+
+nav.tabs {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); display: flex; gap: 4px; overflow-x: auto; padding-block: 8px;
+  border-bottom: 1px solid var(--line); scrollbar-width: none;
+}
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs a {
+  flex: 0 0 auto; text-decoration: none; color: var(--muted); font-weight: 700; font-size: .88rem;
+  padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+}
+nav.tabs a[aria-current="page"] { color: var(--speech); border-color: var(--speech); background: var(--speech-soft); }
+nav.tabs a .badge { font-family: var(--f-data); font-size: .7rem; margin-left: 4px; }
+
+.view { display: flex; flex-direction: column; gap: 22px; }
 h2 { font-size: 1.05rem; margin: 0; font-weight: 700; display: flex; align-items: baseline; gap: 10px; text-wrap: balance; }
 h2 .step { font-family: var(--f-data); font-size: .75rem; color: var(--speech); letter-spacing: .08em; }
 section { display: flex; flex-direction: column; gap: 12px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 label { font-weight: 500; font-size: .9rem; }
 .hint { color: var(--muted); font-size: .85rem; margin: 0; }
-select, textarea, input[type="number"] {
+select, textarea, input[type="number"], input[type="text"] {
   font: inherit; color: var(--ink); background: var(--bg);
   border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%;
 }
 textarea { min-height: 140px; resize: vertical; font-family: var(--f-data); font-size: .85rem; line-height: 1.6; }
-select:focus-visible, textarea:focus-visible, input:focus-visible, button:focus-visible, .file:focus-within {
+select:focus-visible, textarea:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible, .file:focus-within {
   outline: 2px solid var(--speech); outline-offset: 2px;
 }
 .topic-en { font-family: var(--f-data); font-size: .9rem; background: var(--speech-soft); border-radius: 8px; padding: 10px 12px; margin: 0; }
@@ -72,6 +86,8 @@ button {
   border: 1px solid var(--speech); background: var(--speech); color: var(--surface);
 }
 button.ghost { background: transparent; color: var(--speech); }
+button.quiet { background: transparent; color: var(--muted); border-color: var(--line); font-weight: 500; padding: 6px 10px; font-size: .8rem; }
+button.danger { background: transparent; color: var(--long); border-color: var(--long); font-weight: 500; padding: 6px 10px; font-size: .8rem; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 .secs { display: flex; align-items: center; gap: 8px; }
 .secs input { width: 110px; }
@@ -94,13 +110,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .chip.good { color: var(--speech); } .chip.mid { color: var(--pause); } .chip.low { color: var(--long); } .chip.na { color: var(--muted); }
 .notes { display: flex; flex-direction: column; gap: 6px; font-size: .88rem; }
 .notes code { font-family: var(--f-data); background: var(--speech-soft); padding: 0 5px; border-radius: 4px; overflow-wrap: anywhere; }
-
-/* feedback */
 .feedback { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .92rem; }
 .feedback h4 { margin: 14px 0 4px; font-size: .95rem; color: var(--speech); }
 .feedback h4:first-child { margin-top: 0; }
 
-/* history */
+/* charts + history */
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .chart { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
 .chart .k { font-size: .78rem; color: var(--muted); }
@@ -113,112 +127,422 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .empty { color: var(--muted); font-size: .88rem; margin: 0; }
 details summary { cursor: pointer; font-weight: 500; }
 details p { margin: 8px 0 0; }
+
+/* today */
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .k { font-size: .75rem; color: var(--muted); }
+.stat .v { font-family: var(--f-data); font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .v small { font-size: .72rem; color: var(--muted); font-weight: 400; margin-left: 2px; }
+.bar { height: 8px; background: var(--speech-soft); border-radius: 999px; overflow: hidden; position: relative; }
+.bar > span { position: absolute; inset: 0 auto 0 0; background: var(--speech); border-radius: 999px; }
+.bar > i { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--pause); }
+.menu { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.menu li { border-top: 1px solid var(--line); }
+.menu li:first-child { border-top: 0; }
+.menu label { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; cursor: pointer; font-weight: 400; }
+.menu input { width: 20px; height: 20px; accent-color: var(--speech); }
+.menu .t { display: flex; flex-direction: column; min-width: 0; }
+.menu .t b { font-weight: 700; font-size: .92rem; }
+.menu .t span { font-size: .78rem; color: var(--muted); }
+.menu .min { font-family: var(--f-data); font-size: .8rem; color: var(--muted); }
+.menu .go { font-size: .78rem; color: var(--speech); text-decoration: none; font-weight: 700; }
+.grid-wrap { overflow-x: auto; }
+.daygrid { display: grid; grid-template-columns: repeat(7, minmax(28px, 1fr)); gap: 4px; min-width: 240px; }
+.daygrid .dow { font-size: .68rem; color: var(--muted); text-align: center; }
+.cell { aspect-ratio: 1; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); position: relative; font-family: var(--f-data); font-size: .62rem; color: var(--muted); display: flex; align-items: flex-start; justify-content: flex-start; padding: 2px 3px; max-width: 100%; }
+.cell.out { visibility: hidden; }
+.cell.today { outline: 2px solid var(--pause); outline-offset: 1px; }
+.cell[data-l="1"] { background: color-mix(in srgb, var(--speech) 25%, var(--bg)); }
+.cell[data-l="2"] { background: color-mix(in srgb, var(--speech) 50%, var(--bg)); color: var(--ink); }
+.cell[data-l="3"] { background: color-mix(in srgb, var(--speech) 78%, var(--bg)); color: var(--surface); }
+.cell[data-l="4"] { background: var(--speech); color: var(--surface); border-color: var(--speech); }
+
+/* chunks */
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-height: 180px; }
+.card .ja { font-size: 1.2rem; font-weight: 700; text-wrap: balance; }
+.card .note { font-size: .82rem; color: var(--muted); }
+.card .en { font-family: var(--f-data); font-size: 1.05rem; color: var(--speech); overflow-wrap: anywhere; }
+.grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.grades button { padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 0; font-size: .85rem; }
+.grades button small { font-family: var(--f-data); font-weight: 400; font-size: .7rem; opacity: .85; }
+.grades .g0 { background: transparent; color: var(--long); border-color: var(--long); }
+.grades .g1 { background: transparent; color: var(--pause); border-color: var(--pause); }
+.clist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.clist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 0; border-top: 1px solid var(--line); align-items: center; }
+.clist li:first-child { border-top: 0; }
+.clist .en { font-family: var(--f-data); font-size: .85rem; overflow-wrap: anywhere; }
+.clist .ja { font-size: .8rem; color: var(--muted); }
+.clist .due { font-family: var(--f-data); font-size: .72rem; color: var(--muted); text-align: right; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.two > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* timer */
+.clock { font-family: var(--f-data); font-size: clamp(3.4rem, 18vw, 6rem); font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; }
+.clock.done { color: var(--pause); }
+.rounds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.round { border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.round b { font-family: var(--f-data); font-size: 1.05rem; }
+.round span { font-size: .72rem; color: var(--muted); }
+.round.on { border-color: var(--speech); background: var(--speech-soft); }
+.round.fin { border-color: var(--speech); }
+.round.fin span { color: var(--speech); }
+.track { height: 6px; background: var(--speech-soft); border-radius: 999px; overflow: hidden; }
+.track span { display: block; height: 100%; background: var(--speech); width: 0; }
+.center { justify-content: center; }
+
+/* shadow */
+audio { width: 100%; }
+.ab { font-family: var(--f-data); font-size: .85rem; color: var(--muted); }
+.ab b { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
 <div class="wrap">
   <header>
     <h1>Fluency Lab<span class="dot">.</span></h1>
-    <p class="lede">話した英語の「止まった場所」と「速さ」を測って、Claude に添削してもらうための練習ノート。測定は研究で使われる流暢さの指標（話す速さ・沈黙・言い直し）に沿っています。</p>
+    <p class="lede">話す力を「使える状態」にするための練習ノート。毎日のメニュー、流暢さの計測、チャンク帳、4/3/2、シャドーイングをここにまとめています。</p>
   </header>
 
-  <section>
-    <h2><span class="step">STEP 1</span>お題を選ぶ</h2>
-    <div class="panel">
-      <label for="topic">お題</label>
-      <select id="topic"></select>
-      <p class="topic-en" id="topic-en"></p>
-      <p class="hint" id="topic-note"></p>
-    </div>
-  </section>
+  <nav class="tabs" aria-label="ページ">
+    <a href="#today" data-v="today">今日</a>
+    <a href="#measure" data-v="measure">測る</a>
+    <a href="#chunks" data-v="chunks">チャンク帳<span class="badge" id="due-badge"></span></a>
+    <a href="#timer" data-v="timer">4/3/2</a>
+    <a href="#shadow" data-v="shadow">シャドーイング</a>
+  </nav>
 
-  <section>
-    <h2><span class="step">STEP 2</span>録音して、文字起こしを貼る</h2>
-    <div class="panel">
-      <p class="hint">スマホのボイスメモで録音 → その音声ファイルをここで選択。文字起こし（ボイスメモの文字起こし機能や音声入力）は下の欄に<strong>直さずに</strong>貼ってください。</p>
-      <div class="row">
-        <span class="file"><input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" aria-label="録音ファイルを選ぶ">録音ファイルを選ぶ</span>
-        <span class="filename" id="filename">未選択</span>
+  <!-- ================= TODAY ================= -->
+  <div class="view" id="v-today">
+    <section>
+      <h2><span class="step">GOAL</span>年末までに 260 時間</h2>
+      <div class="panel">
+        <div class="stats">
+          <div class="stat"><span class="k">累計</span><span class="v" id="s-total">0<small>時間</small></span></div>
+          <div class="stat"><span class="k">連続日数</span><span class="v" id="s-streak">0<small>日</small></span></div>
+          <div class="stat"><span class="k">今日</span><span class="v" id="s-today">0<small>/240分</small></span></div>
+        </div>
+        <div class="bar" aria-hidden="true"><span id="s-bar" style="width:0%"></span><i id="s-pace" style="left:0%"></i></div>
+        <p class="hint" id="s-pace-text">オレンジの線は、今日までに積んでおきたい時間の目安です。</p>
       </div>
-      <label for="transcript">文字起こし</label>
-      <textarea id="transcript" placeholder="Yesterday I woke up at seven and, uh, I went to ... "></textarea>
-      <div class="secs">
-        <label for="secs">録音がない場合の秒数</label>
-        <input type="number" id="secs" min="1" step="1" inputmode="numeric" placeholder="例 75">
-      </div>
-      <div class="row">
-        <button id="analyze">測定する</button>
-        <p class="status" id="status" role="status"></p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section>
-    <h2><span class="step">STEP 3</span>結果</h2>
-    <div class="panel">
-      <span class="banner" id="sample-banner">サンプル表示：自分の録音を測るとここが置き換わります</span>
-      <canvas class="timeline" id="timeline" aria-label="発話と沈黙のタイムライン"></canvas>
-      <div class="legend">
-        <span><i style="background:var(--speech)"></i>話している</span>
-        <span><i style="background:var(--pause)"></i>沈黙 0.25〜1秒</span>
-        <span><i style="background:var(--long)"></i>長い沈黙 1秒以上</span>
+    <section>
+      <h2><span class="step">TODAY</span><span id="today-title">今日のメニュー</span></h2>
+      <div class="panel">
+        <ul class="menu" id="menu"></ul>
+        <p class="status" id="menu-status" role="status"></p>
       </div>
-      <div class="metrics" id="metrics"></div>
-      <div class="notes" id="notes"></div>
-      <details>
-        <summary>指標の読み方</summary>
-        <p class="hint"><b>話す速さ</b>：録音全体での1分あたりの単語数。<b>調音速度</b>：沈黙を除いて、声を出している間だけの速さ。速さが低いのに調音速度が高いなら、口は動くけど止まりすぎ、という意味です。<b>平均ラン長</b>：沈黙と沈黙の間に一息で話せた単語数（Mean Length of Run）。チャンクが増えると伸びます。沈黙は 0.25 秒以上を数えています（de Jong &amp; Bosker, 2013 の基準）。目安の帯は研究の幅を丸めた大まかなものです。</p>
-      </details>
-      <div class="row">
-        <button id="ai" disabled>Claude に添削してもらう</button>
-        <button class="ghost" id="save" disabled>記録する</button>
-        <button class="ghost" id="copy" disabled>結果をコピー</button>
-      </div>
-      <p class="status" id="ai-status" role="status"></p>
-      <div class="feedback" id="feedback" hidden></div>
-    </div>
-  </section>
+    </section>
 
-  <section>
-    <h2><span class="step">LOG</span>伸びの記録</h2>
-    <div class="panel">
-      <div class="charts">
-        <div class="chart"><div class="k">話す速さ（語/分）</div><svg id="chart-wpm" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="話す速さの推移"></svg></div>
-        <div class="chart"><div class="k">平均ラン長（語）</div><svg id="chart-mlr" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="平均ラン長の推移"></svg></div>
+    <section>
+      <h2><span class="step">11/5–12/31</span>57日の記録</h2>
+      <div class="panel">
+        <div class="grid-wrap"><div class="daygrid" id="daygrid"></div></div>
+        <p class="hint">濃いほどその日のメニューを多くこなした日。数字は日付です。</p>
       </div>
-      <ul class="hist" id="hist"></ul>
-      <p class="empty" id="hist-empty">まだ記録はありません。測定して「記録する」を押すと、ここに並びます。毎週日曜に同じお題で測ると伸びがよく見えます。</p>
-    </div>
-  </section>
+    </section>
+  </div>
+
+  <!-- ================= MEASURE ================= -->
+  <div class="view" id="v-measure" hidden>
+    <section>
+      <h2><span class="step">STEP 1</span>お題を選ぶ</h2>
+      <div class="panel">
+        <label for="topic">お題</label>
+        <select id="topic"></select>
+        <p class="topic-en" id="topic-en"></p>
+        <p class="hint" id="topic-note"></p>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">STEP 2</span>録音して、文字起こしを貼る</h2>
+      <div class="panel">
+        <p class="hint">スマホのボイスメモで録音 → その音声ファイルをここで選択。文字起こし（ボイスメモの文字起こし機能や音声入力）は下の欄に<strong>直さずに</strong>貼ってください。</p>
+        <div class="row">
+          <span class="file"><input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" aria-label="録音ファイルを選ぶ">録音ファイルを選ぶ</span>
+          <span class="filename" id="filename">未選択</span>
+        </div>
+        <label for="transcript">文字起こし</label>
+        <textarea id="transcript" placeholder="Yesterday I woke up at seven and, uh, I went to ... "></textarea>
+        <div class="secs">
+          <label for="secs">録音がない場合の秒数</label>
+          <input type="number" id="secs" min="1" step="1" inputmode="numeric" placeholder="例 75">
+        </div>
+        <div class="row">
+          <button id="analyze">測定する</button>
+          <p class="status" id="status" role="status"></p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">STEP 3</span>結果</h2>
+      <div class="panel">
+        <span class="banner" id="sample-banner">サンプル表示：自分の録音を測るとここが置き換わります</span>
+        <canvas class="timeline" id="timeline" aria-label="発話と沈黙のタイムライン"></canvas>
+        <div class="legend">
+          <span><i style="background:var(--speech)"></i>話している</span>
+          <span><i style="background:var(--pause)"></i>沈黙 0.25〜1秒</span>
+          <span><i style="background:var(--long)"></i>長い沈黙 1秒以上</span>
+        </div>
+        <div class="metrics" id="metrics"></div>
+        <div class="notes" id="notes"></div>
+        <details>
+          <summary>指標の読み方</summary>
+          <p class="hint"><b>話す速さ</b>：録音全体での1分あたりの単語数。<b>調音速度</b>：沈黙を除いて、声を出している間だけの速さ。速さが低いのに調音速度が高いなら、口は動くけど止まりすぎ、という意味です。<b>平均ラン長</b>：沈黙と沈黙の間に一息で話せた単語数（Mean Length of Run）。チャンクが増えると伸びます。沈黙は 0.25 秒以上を数えています（de Jong &amp; Bosker, 2013 の基準）。目安の帯は研究の幅を丸めた大まかなものです。</p>
+        </details>
+        <div class="row">
+          <button id="ai" disabled>Claude に添削してもらう</button>
+          <button class="ghost" id="save" disabled>記録する</button>
+          <button class="ghost" id="copy" disabled>結果をコピー</button>
+          <button class="ghost" id="to-chunks" hidden>チャンク帳に追加</button>
+        </div>
+        <p class="status" id="ai-status" role="status"></p>
+        <div class="feedback" id="feedback" hidden></div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">LOG</span>伸びの記録</h2>
+      <div class="panel">
+        <div class="charts">
+          <div class="chart"><div class="k">話す速さ（語/分）</div><svg id="chart-wpm" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="話す速さの推移"></svg></div>
+          <div class="chart"><div class="k">平均ラン長（語）</div><svg id="chart-mlr" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="平均ラン長の推移"></svg></div>
+        </div>
+        <ul class="hist" id="hist"></ul>
+        <p class="empty" id="hist-empty">まだ記録はありません。測定して「記録する」を押すと、ここに並びます。毎週日曜に同じお題で測ると伸びがよく見えます。</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= CHUNKS ================= -->
+  <div class="view" id="v-chunks" hidden>
+    <section>
+      <h2><span class="step">REVIEW</span>今日の復習 <span class="hint" id="due-count"></span></h2>
+      <div class="panel">
+        <p class="hint">日本語を見て、英語を<strong>声に出して</strong>言ってから答えを見る。思い出す努力そのものが記憶を強くします（検索練習効果）。間隔は答えた手応えで自動調整されます。</p>
+        <div class="card" id="card"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">ADD</span>表現を追加</h2>
+      <div class="panel">
+        <div class="two">
+          <div><label for="c-en">英語</label><input type="text" id="c-en" placeholder="What makes Google different is that …"></div>
+          <div><label for="c-ja">意味・使いどころ</label><input type="text" id="c-ja" placeholder="Google が他と違うのは〜という点"></div>
+        </div>
+        <div class="row"><button id="c-add">追加する</button><p class="status" id="c-status" role="status"></p></div>
+        <p class="hint">「測る」で Claude の添削を受けると、【覚えるチャンク】をボタン一つでここに追加できます。チャットで添削したものは Claude がここに直接入れることもできます。</p>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">ALL</span>登録済み <span class="hint" id="c-total"></span></h2>
+      <div class="panel">
+        <ul class="clist" id="clist"></ul>
+        <p class="empty" id="c-empty">まだ表現がありません。</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= TIMER ================= -->
+  <div class="view" id="v-timer" hidden>
+    <section>
+      <h2><span class="step">4/3/2</span>同じ話を、短い時間でもう一度</h2>
+      <div class="panel">
+        <label for="t-topic">お題</label>
+        <select id="t-topic"></select>
+        <p class="topic-en" id="t-topic-en"></p>
+        <div class="rounds" id="rounds"></div>
+        <div class="clock" id="clock" aria-live="off">4:00</div>
+        <div class="track"><span id="t-track"></span></div>
+        <p class="status" id="t-status" role="status" style="text-align:center">ラウンド1：4分で話します。準備ができたら開始。</p>
+        <div class="row center">
+          <button id="t-start">開始</button>
+          <button class="ghost" id="t-next" hidden>次のラウンドへ</button>
+          <button class="quiet" id="t-reset">リセット</button>
+        </div>
+        <details>
+          <summary>やり方と理由</summary>
+          <p class="hint">同じ内容を 4分 → 3分 → 2分 で3回話します。内容は削らず、同じことをより速く言うのがルール。2回目以降は「何を言うか」を考える負担が減るので、その余裕が「どう速く言うか」に回り、流暢さが伸びます（Nation; Arevart &amp; Nation, 1991）。各ラウンドをボイスメモで録って「測る」に入れると、速さとラン長の伸びが数字で見えます。</p>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= SHADOW ================= -->
+  <div class="view" id="v-shadow" hidden>
+    <section>
+      <h2><span class="step">SHADOW</span>聞いて、すぐ後ろを追いかける</h2>
+      <div class="panel">
+        <div class="row">
+          <span class="file"><input type="file" id="s-file" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac" aria-label="音声ファイルを選ぶ">音声ファイルを選ぶ</span>
+          <span class="filename" id="s-filename">未選択</span>
+        </div>
+        <audio id="player" controls preload="metadata"></audio>
+        <div class="row">
+          <button class="ghost" id="s-back">◀ 3秒</button>
+          <label for="s-rate" class="hint">速度</label>
+          <select id="s-rate" style="width:auto">
+            <option value="0.7">0.7×</option><option value="0.8">0.8×</option><option value="0.9">0.9×</option>
+            <option value="1" selected>1.0×</option><option value="1.1">1.1×</option>
+          </select>
+        </div>
+        <div class="row">
+          <button class="ghost" id="s-a">A をここに</button>
+          <button class="ghost" id="s-b">B をここに</button>
+          <button class="quiet" id="s-clear">区間を解除</button>
+          <span class="ab" id="s-ab">区間：<b>なし</b></span>
+        </div>
+        <p class="hint">A と B を決めると、その区間だけをくり返し再生します。1文〜2文ずつ区切るのがおすすめ。</p>
+      </div>
+    </section>
+    <section>
+      <h2><span class="step">SCRIPT</span>スクリプト</h2>
+      <div class="panel">
+        <label for="s-script">音声の英文（字幕や書き起こしを貼る）</label>
+        <textarea id="s-script" placeholder="英文を貼っておくと、ここを見ながら練習できます。"></textarea>
+        <details>
+          <summary>やり方の順番</summary>
+          <p class="hint">① スクリプトなしで聞く → ② スクリプトを読んで意味を確認 → ③ スクリプトを見ながら音に合わせて読む（オーバーラッピング）→ ④ スクリプトなしで 0.5 語ほど後ろを追う（シャドーイング）→ ⑤ 速度を 1.0× に戻す。日本語に訳さず、音・リズム・強弱をそのまま真似ます。素材は好きな映画、テック系の動画、ポッドキャストなど、自分が面白いと思えるものを。</p>
+        </details>
+      </div>
+    </section>
+  </div>
 </div>
 
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const fmt = (v, d = 0) => v == null || !isFinite(v) ? "—" : Number(v).toFixed(d);
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  const use = (n) => (window.claude && window.claude.use) ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
 
+  // ================= routing =================
+  const VIEWS = ["today", "measure", "chunks", "timer", "shadow"];
+  function route() {
+    const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "today";
+    VIEWS.forEach((n) => { $("#v-" + n).hidden = n !== v; });
+    document.querySelectorAll("nav.tabs a").forEach((a) => { if (a.dataset.v === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+    if (v === "measure" && current) requestAnimationFrame(() => drawTimeline(currentAudio, current));
+    if (v === "chunks") renderCard();
+  }
+  window.addEventListener("hashchange", route);
+
+  // ================= shared data =================
   const TOPICS = [
     { id: "yesterday", ja: "昨日やったこと", en: "Describe what you did yesterday, from morning to night.", note: "目安 1分。内容を考えなくていいので、純粋な英語の流暢さが測れます。" },
     { id: "intro", ja: "自己紹介と Why Google", en: "Tell me about yourself and why you want to work at Google.", note: "目安 2分。面接の定番。毎週日曜はこのお題で伸びを確認。" },
     { id: "movie", ja: "好きな映画・ドラマを紹介する", en: "Tell me about a movie or TV show you love and why.", note: "目安 1〜2分。" },
     { id: "hobby", ja: "最近ハマっていること", en: "What have you been into lately? Tell me about it.", note: "目安 1〜2分。" },
     { id: "improve", ja: "自分で考えて改善した経験", en: "Tell me about a time you found a better way to do something.", note: "目安 2分。面接の行動質問の練習。" },
-    { id: "432", ja: "4/3/2 トレーニング", en: "Same story three times: 4 min → 3 min → 2 min.", note: "3回それぞれ録音して測ると、回を追うごとに速さとラン長が上がるのが見えます（Nation の流暢さ訓練）。" },
+    { id: "432", ja: "4/3/2 トレーニング", en: "Same story three times: 4 min → 3 min → 2 min.", note: "各ラウンドを録音して測ると、回を追うごとに速さとラン長が上がるのが見えます。" },
   ];
+  let db = null, sample = null;
 
+  // ================= TODAY =================
+  const MENU = [
+    { id: "shadow", ja: "シャドーイング", sub: "好きな音声を真似る", min: 30, link: "#shadow" },
+    { id: "task", ja: "タスク・サイクル", sub: "話す → 書き起こす → 添削 → 言い直す", min: 60, link: "#measure" },
+    { id: "fluency", ja: "4/3/2 トレーニング", sub: "同じ話を 4→3→2 分で", min: 30, link: "#timer" },
+    { id: "input", ja: "多聴・多読", sub: "映画・YouTube・記事を訳さずに", min: 60 },
+    { id: "chunks", ja: "チャンク帳の復習", sub: "言えなかった表現を思い出す", min: 30, link: "#chunks" },
+    { id: "talk", ja: "人と話す", sub: "オンライン英会話・言語交換・音声モード", min: 30 },
+    { id: "movie", ja: "映画・ドラマを1本", sub: "英語字幕で", min: 60, weekend: true },
+    { id: "interview", ja: "面接シミュレーション", sub: "Why Google・経験の説明", min: 60, weekend: true },
+  ];
+  const START = new Date(2026, 10, 5), END = new Date(2026, 11, 31), GOAL_H = 260;
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const isWeekend = (d) => d.getDay() === 0 || d.getDay() === 6;
+  const menuFor = (d) => MENU.filter((m) => !m.weekend || isWeekend(d));
+  const targetFor = (d) => menuFor(d).reduce((s, m) => s + m.min, 0);
+  let days = {};            // ymd -> {items:{}, minutes}
+  let daysLoaded = false;
+
+  function renderToday() {
+    const now = new Date(), key = ymd(now), day = days[key] || { items: {} };
+    const items = menuFor(now);
+    $("#today-title").textContent = `今日のメニュー（${now.getMonth() + 1}/${now.getDate()}・${isWeekend(now) ? "休日 6時間" : "平日 4時間"}）`;
+    $("#menu").innerHTML = items.map((m) => `
+      <li><label for="m-${m.id}">
+        <input type="checkbox" id="m-${m.id}" data-id="${m.id}" ${day.items && day.items[m.id] ? "checked" : ""} ${db ? "" : "disabled"}>
+        <span class="t"><b>${esc(m.ja)}</b><span>${esc(m.sub)}</span></span>
+        <span class="min">${m.min}分${m.link ? ` <a class="go" href="${m.link}">開く</a>` : ""}</span>
+      </label></li>`).join("");
+    const doneMin = items.reduce((s, m) => s + (day.items && day.items[m.id] ? m.min : 0), 0);
+    $("#s-today").innerHTML = `${doneMin}<small>/${targetFor(now)}分</small>`;
+    // totals
+    const totalMin = Object.values(days).reduce((s, d) => s + (d.minutes || 0), 0);
+    $("#s-total").innerHTML = `${(totalMin / 60).toFixed(totalMin >= 600 ? 0 : 1)}<small>/ ${GOAL_H} 時間</small>`;
+    let streak = 0; const c = new Date(now);
+    if (!(days[ymd(c)] && days[ymd(c)].minutes > 0)) c.setDate(c.getDate() - 1);
+    while (days[ymd(c)] && days[ymd(c)].minutes > 0) { streak++; c.setDate(c.getDate() - 1); }
+    $("#s-streak").innerHTML = `${streak}<small>日</small>`;
+    $("#s-bar").style.width = Math.min(100, totalMin / 60 / GOAL_H * 100) + "%";
+    // pace: planned minutes from START through yesterday + today's target
+    let planned = 0; const p = new Date(START);
+    while (p <= now && p <= END) { planned += targetFor(p); p.setDate(p.getDate() + 1); }
+    $("#s-pace").style.left = Math.min(100, planned / 60 / GOAL_H * 100) + "%";
+    const diff = totalMin / 60 - planned / 60;
+    $("#s-pace-text").textContent = !db ? "この表示では記録を保存できません。" :
+      !daysLoaded ? "記録を読み込んでいます…" :
+      `オレンジの線は、今日のメニューまで終えたときの累計（${(planned / 60).toFixed(0)}時間）。` + (diff >= 0 ? "ペース通りです。" : `あと ${(-diff).toFixed(1)} 時間でペースに追いつきます。`);
+    renderGrid(now);
+  }
+
+  function renderGrid(now) {
+    const g = $("#daygrid");
+    const dows = ["月", "火", "水", "木", "金", "土", "日"];
+    let html = dows.map((d) => `<div class="dow">${d}</div>`).join("");
+    const first = new Date(START); const offset = (first.getDay() + 6) % 7;
+    for (let i = 0; i < offset; i++) html += `<div class="cell out"></div>`;
+    const d = new Date(START);
+    while (d <= END) {
+      const rec = days[ymd(d)], ratio = rec ? (rec.minutes || 0) / targetFor(d) : 0;
+      const l = ratio <= 0 ? 0 : ratio < .34 ? 1 : ratio < .67 ? 2 : ratio < 1 ? 3 : 4;
+      const label = `${d.getMonth() + 1}月${d.getDate()}日 ${rec ? rec.minutes || 0 : 0}分`;
+      html += `<div class="cell ${ymd(d) === ymd(now) ? "today" : ""}" data-l="${l}" title="${label}" aria-label="${label}">${d.getDate()}</div>`;
+      d.setDate(d.getDate() + 1);
+    }
+    g.innerHTML = html;
+  }
+
+  let menuWriting = Promise.resolve();
+  $("#menu").addEventListener("change", (e) => {
+    const cb = e.target; if (!cb.dataset || !cb.dataset.id || !db) return;
+    setItem(new Date(), cb.dataset.id, cb.checked);
+  });
+  function setItem(date, id, on) {
+    const key = ymd(date), prev = days[key] || { items: {} };
+    const items = Object.assign({}, prev.items, { [id]: on });
+    if (!on) delete items[id];
+    const minutes = menuFor(date).reduce((s, m) => s + (items[m.id] ? m.min : 0), 0);
+    days[key] = { date: key, items, minutes };
+    renderToday();
+    if (!db) return Promise.resolve();
+    menuWriting = menuWriting.then(() => db.doc("days/" + key).set({ date: key, items, minutes, updatedAt: Date.now() }))
+      .then(() => { $("#menu-status").textContent = ""; })
+      .catch(() => { $("#menu-status").textContent = "保存できませんでした。もう一度チェックし直してください。"; });
+    return menuWriting;
+  }
+
+  // ================= MEASURE =================
   const sel = $("#topic");
   TOPICS.forEach((t) => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.ja; sel.appendChild(o); });
   const topicOf = () => TOPICS.find((t) => t.id === sel.value) || TOPICS[0];
   const showTopic = () => { const t = topicOf(); $("#topic-en").textContent = t.en; $("#topic-note").textContent = t.note; };
   sel.addEventListener("change", () => { showTopic(); store("fl-topic", sel.value); });
-
-  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   const savedTopic = load("fl-topic"); if (savedTopic && TOPICS.some((t) => t.id === savedTopic)) sel.value = savedTopic;
   showTopic();
   const draft = load("fl-draft"); if (draft) $("#transcript").value = draft;
   $("#transcript").addEventListener("input", (e) => store("fl-draft", e.target.value));
 
-  // ---------- audio analysis ----------
   let audioRes = null;
   $("#file").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
@@ -229,17 +553,13 @@ details p { margin: 8px 0 0; }
     try { audioRes = await analyzeAudio(f); setStatus(`音声 ${audioRes.duration.toFixed(1)} 秒を読み込みました。文字起こしを貼って「測定する」へ。`); }
     catch (err) { setStatus("この音声ファイルは読み込めませんでした。m4a / mp3 / wav で保存し直して試してください。", true); }
   });
-
   function setStatus(msg, err) { const s = $("#status"); s.textContent = msg; s.classList.toggle("err", !!err); }
 
   async function analyzeAudio(file) {
     const buf = await file.arrayBuffer();
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
-    const audio = await new Promise((res, rej) => {
-      const p = ctx.decodeAudioData(buf, res, rej);
-      if (p && p.then) p.then(res, rej);
-    });
+    const audio = await new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
     try { ctx.close(); } catch (e) {}
     const sr = audio.sampleRate, hop = Math.max(1, Math.round(sr * 0.01));
     const chans = []; for (let c = 0; c < audio.numberOfChannels; c++) chans.push(audio.getChannelData(c));
@@ -254,7 +574,6 @@ details p { margin: 8px 0 0; }
     const pct = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
     const noise = pct(0.1), peak = pct(0.98);
     const thr = noise + Math.max(8, (peak - noise) * 0.3);
-
     let segs = [], s = -1;
     for (let i = 0; i < frames; i++) {
       const v = lvl[i] > thr;
@@ -262,13 +581,9 @@ details p { margin: 8px 0 0; }
       if (!v && s >= 0) { segs.push([s, i]); s = -1; }
     }
     if (s >= 0) segs.push([s, frames]);
-    segs = segs.filter(([a, b]) => b - a >= 6);            // drop clicks < 60 ms
+    segs = segs.filter(([a, b]) => b - a >= 6);
     const runs = [];
-    for (const seg of segs) {                                 // merge gaps < 250 ms
-      const last = runs[runs.length - 1];
-      if (last && seg[0] - last[1] < 25) last[1] = seg[1]; else runs.push([seg[0], seg[1]]);
-    }
-    // envelope for drawing
+    for (const seg of segs) { const last = runs[runs.length - 1]; if (last && seg[0] - last[1] < 25) last[1] = seg[1]; else runs.push([seg[0], seg[1]]); }
     const N = 600, env = [];
     for (let k = 0; k < N; k++) {
       const a = Math.floor(k * frames / N), b = Math.max(a + 1, Math.floor((k + 1) * frames / N));
@@ -278,15 +593,13 @@ details p { margin: 8px 0 0; }
     return { duration: audio.duration, runs: runs.map(([a, b]) => [a / 100, b / 100]), env };
   }
 
-  // ---------- transcript analysis ----------
   const FILLERS = ["um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm", "mm"];
   function analyzeText(text) {
     const tokens = (text.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g) || []);
     const fillers = tokens.filter((t) => FILLERS.includes(t)).length;
     const youKnow = (text.toLowerCase().match(/\byou know\b/g) || []).length;
     const words = tokens.filter((t) => !FILLERS.includes(t));
-    const repeats = [];
-    let i = 0;
+    const repeats = []; let i = 0;
     while (i < words.length) {
       let hit = 0;
       for (let n = 6; n >= 1; n--) {
@@ -301,7 +614,6 @@ details p { margin: 8px 0 0; }
     return { words: words.length, fillers: fillers + youKnow, repeats, jaChunks };
   }
 
-  // ---------- metrics ----------
   function compute(a, t, manualSec) {
     const r = { words: t.words, fillers: t.fillers, repeats: t.repeats, jaChunks: t.jaChunks, hasAudio: !!a };
     if (a && a.runs.length) {
@@ -312,7 +624,6 @@ details p { margin: 8px 0 0; }
       for (let k = 1; k < a.runs.length; k++) pauses.push(a.runs[k][0] - a.runs[k - 1][1]);
       r.pauses = pauses.length;
       r.longPauses = pauses.filter((p) => p >= 1).length;
-      r.veryLong = pauses.filter((p) => p >= 2).length;
       r.meanPause = pauses.length ? pauses.reduce((s, p) => s + p, 0) / pauses.length : 0;
       r.maxPause = pauses.length ? Math.max(...pauses) : 0;
       r.pausesPerMin = r.pauses / (r.total / 60);
@@ -333,22 +644,19 @@ details p { margin: 8px 0 0; }
     longp: (v, total) => { const pm = v / (total / 60); return pm <= 2 ? ["good", "ほぼなし"] : pm <= 5 ? ["mid", "ときどき詰まる"] : ["low", "頻繁に詰まる"]; },
   };
 
-  function fmt(v, d = 0) { return v == null || !isFinite(v) ? "—" : v.toFixed(d); }
-
-  let current = null, currentAudio = null;
+  let current = null, currentAudio = null, feedbackText = "";
   function renderResult(r, a, isSample) {
     current = r; currentAudio = a;
     $("#sample-banner").hidden = !isSample;
-    const cards = [];
     const card = (k, v, unit, b) => `<div class="metric"><span class="k">${k}</span><span class="v">${v}<small>${unit}</small></span>${b ? `<span class="chip ${b[0]}">${b[1]}</span>` : `<span class="chip na">録音が必要</span>`}</div>`;
-    cards.push(card("話す速さ", fmt(r.wpm), "語/分", r.wpm != null ? band.wpm(r.wpm) : null));
-    cards.push(card("調音速度", fmt(r.art), "語/分", r.art != null ? band.art(r.art) : null));
-    cards.push(card("平均ラン長", fmt(r.mlr, 1), "語", r.mlr != null ? band.mlr(r.mlr) : null));
-    cards.push(card("沈黙の頻度", fmt(r.pausesPerMin, 1), "回/分", r.pausesPerMin != null ? band.ppm(r.pausesPerMin) : null));
-    cards.push(card("1秒以上の沈黙", r.longPauses != null ? String(r.longPauses) : "—", `回 / 最長 ${fmt(r.maxPause, 1)}秒`, r.longPauses != null ? band.longp(r.longPauses, r.total) : null));
-    cards.push(card("長さ / 単語数", `${fmt(r.total)}`, `秒 / ${r.words}語`, r.total ? ["na", r.hasAudio ? "音声から計測" : "入力した秒数"] : null));
-    $("#metrics").innerHTML = cards.join("");
-
+    $("#metrics").innerHTML = [
+      card("話す速さ", fmt(r.wpm), "語/分", r.wpm != null ? band.wpm(r.wpm) : null),
+      card("調音速度", fmt(r.art), "語/分", r.art != null ? band.art(r.art) : null),
+      card("平均ラン長", fmt(r.mlr, 1), "語", r.mlr != null ? band.mlr(r.mlr) : null),
+      card("沈黙の頻度", fmt(r.pausesPerMin, 1), "回/分", r.pausesPerMin != null ? band.ppm(r.pausesPerMin) : null),
+      card("1秒以上の沈黙", r.longPauses != null ? String(r.longPauses) : "—", `回 / 最長 ${fmt(r.maxPause, 1)}秒`, r.longPauses != null ? band.longp(r.longPauses, r.total) : null),
+      card("長さ / 単語数", `${fmt(r.total)}`, `秒 / ${r.words}語`, r.total ? ["na", r.hasAudio ? "音声から計測" : "入力した秒数"] : null),
+    ].join("");
     const notes = [];
     notes.push(`言い直し・繰り返し：<b>${r.repeats.length}</b> 回` + (r.repeats.length ? `　${r.repeats.slice(0, 6).map((p) => `<code>${esc(p)}</code>`).join(" ")}` : ""));
     notes.push(`つなぎ言葉（um, uh, you know など）：<b>${r.fillers}</b> 回`);
@@ -359,43 +667,33 @@ details p { margin: 8px 0 0; }
     $("#copy").disabled = false;
     $("#save").disabled = isSample || !db;
     $("#ai").disabled = isSample || !sample || !r.words;
-    if (!isSample) { $("#feedback").hidden = true; $("#feedback").textContent = ""; feedbackText = ""; $("#ai-status").textContent = ""; }
+    if (!isSample) { $("#feedback").hidden = true; $("#feedback").textContent = ""; feedbackText = ""; $("#ai-status").textContent = ""; $("#to-chunks").hidden = true; }
   }
-
-  function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 
   function drawTimeline(a, r) {
     const cv = $("#timeline"); const dpr = window.devicePixelRatio || 1;
     const W = cv.clientWidth || 600, H = cv.clientHeight || 132;
+    if (!cv.clientWidth) return;
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
     const muted = cssVar("--muted"), line = cssVar("--line");
     g.font = `11px ${cssVar("--f-data")}`;
-    if (!a) {
-      g.fillStyle = muted; g.textAlign = "center";
-      g.fillText("録音ファイルを入れると、ここに話した区間と沈黙が描かれます", W / 2, H / 2);
-      return;
-    }
-    const dur = a.duration || 1, top = 18, mid = 62, bandH = 30, axisY = H - 18;
+    if (!a) { g.fillStyle = muted; g.textAlign = "center"; g.fillText("録音ファイルを入れると、ここに話した区間と沈黙が描かれます", W / 2, H / 2); return; }
+    const dur = a.duration || 1, mid = 62, bandH = 30, axisY = H - 18;
     const x = (t) => (t / dur) * W;
-    // envelope
     g.fillStyle = cssVar("--env");
     const n = a.env.length, bw = W / n;
     for (let k = 0; k < n; k++) { const h = a.env[k] * (bandH * 1.4); g.fillRect(k * bw, mid - h / 2, Math.max(1, bw - 0.5), h); }
-    // pauses
     for (let k = 1; k < a.runs.length; k++) {
       const p0 = a.runs[k - 1][1], p1 = a.runs[k][0], d = p1 - p0;
       g.fillStyle = d >= 1 ? cssVar("--long") : cssVar("--pause");
       g.globalAlpha = d >= 1 ? 0.9 : 0.75;
       g.fillRect(x(p0), mid - 3, Math.max(1.5, x(p1) - x(p0)), 6);
       g.globalAlpha = 1;
-      if (d >= 1) { g.fillStyle = cssVar("--long"); g.textAlign = "center"; g.fillText(d.toFixed(1) + "s", (x(p0) + x(p1)) / 2, top - 4 + 8); }
+      if (d >= 1) { g.fillStyle = cssVar("--long"); g.textAlign = "center"; g.fillText(d.toFixed(1) + "s", (x(p0) + x(p1)) / 2, 22); }
     }
-    // runs
     g.fillStyle = cssVar("--speech");
     for (const [s0, s1] of a.runs) g.fillRect(x(s0), mid - bandH / 2 + 22, Math.max(1.5, x(s1) - x(s0)), 6);
-    // axis
     g.strokeStyle = line; g.beginPath(); g.moveTo(0, axisY); g.lineTo(W, axisY); g.stroke();
     const step = dur > 240 ? 60 : dur > 90 ? 30 : dur > 30 ? 10 : 5;
     g.fillStyle = muted;
@@ -410,21 +708,10 @@ details p { margin: 8px 0 0; }
     const text = $("#transcript").value.trim();
     const manual = parseFloat($("#secs").value);
     if (!audioRes && !text) { setStatus("録音ファイルか文字起こしのどちらかを入れてください。", true); return; }
-    const t = analyzeText(text);
-    const r = compute(audioRes, t, manual);
+    const r = compute(audioRes, analyzeText(text), manual);
     r.topic = topicOf().ja; r.topicEn = topicOf().en; r.transcript = text;
     renderResult(r, audioRes, false);
     setStatus(!text ? "沈黙だけ測りました。文字起こしを貼ると速さとラン長も出ます。" : !audioRes && !(manual > 0) ? "単語数と言い直しだけ測りました。録音か秒数を入れると速さも出ます。" : "測定しました。");
-  });
-
-  // ---------- capabilities ----------
-  let db = null, sample = null, feedbackText = "";
-  const use = (n) => (window.claude && window.claude.use) ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
-
-  use("sample").then((s) => {
-    sample = s;
-    if (current && $("#sample-banner").hidden) $("#ai").disabled = !sample || !current.words;
-    if (!s) $("#ai").title = "この表示では Claude の添削は使えません";
   });
 
   function metricsText(r) {
@@ -442,7 +729,15 @@ details p { margin: 8px 0 0; }
 
   function renderFeedback(text) {
     const box = $("#feedback"); box.hidden = false;
-    box.innerHTML = esc(text).replace(/^\s*【([^】]+)】\s*$/gm, "<h4>$1</h4>").replace(/^\s*【([^】]+)】/gm, "<h4>$1</h4>").replace(/\n{2,}/g, "\n");
+    box.innerHTML = esc(text).replace(/^\s*【([^】]+)】\s*/gm, "<h4>$1</h4>").replace(/\n{2,}/g, "\n");
+  }
+  function parseChunks(text) {
+    const m = text.split(/【覚えるチャンク】/)[1]; if (!m) return [];
+    const body = m.split(/【/)[0];
+    return body.split("\n").map((l) => l.trim().replace(/^[\d０-９]+[.．、)\s]*/, "")).filter(Boolean).map((l) => {
+      const i = l.search(/[：:]/); if (i < 0) return null;
+      return { en: l.slice(0, i).trim(), ja: l.slice(i + 1).trim() };
+    }).filter((c) => c && /[A-Za-z]/.test(c.en));
   }
 
   let aborter = null;
@@ -450,14 +745,14 @@ details p { margin: 8px 0 0; }
     if (!sample || !current) return;
     if (aborter) aborter.abort();
     aborter = new AbortController();
-    $("#ai").disabled = true; $("#ai-status").textContent = "Claude が添削しています…";
+    $("#ai").disabled = true; $("#to-chunks").hidden = true; $("#ai-status").textContent = "Claude が添削しています…";
     const prompt = `あなたは第二言語習得の研究に詳しいスピーキングコーチです。学習者は日本の大学生（経済学部）で、CEFR B1。読解は得意だがアウトプットが苦手。目標は来年の Google の英語面接と、将来の C1。
 以下は学習者が話した英語の文字起こし（音声入力なので句読点や大文字は不正確。それ自体は誤りとして扱わない）と、音声から測った流暢さの指標です。
 
 日本語で、次の形式で答えてください。見出しは【】で囲んで単独の行に置き、Markdown 記号（#, *, |, -）は使わないこと。
 【総評】流暢さ・正確さ・複雑さ（CAF）をそれぞれ1〜2文で。指標の数字に具体的に触れる。
 【添削】重要な誤りを最大8個。1行に1つ、「× 原文 → ○ 修正　／ 理由」の形式。同じ種類の誤りが繰り返されていればそう指摘する。
-【覚えるチャンク】次に使えるかたまり表現を3つ。「表現：意味と使いどころ」の形式。
+【覚えるチャンク】次に使えるかたまり表現を3つ。1行に1つ、「英語の表現：日本語の意味と使いどころ」の形式（区切りは全角コロン）。
 【模範例】同じ内容を B1+〜B2 の自然な話し言葉の英語で、80〜120語。
 【次の1回で意識すること】1つだけ、具体的に。
 
@@ -473,14 +768,25 @@ ${current.transcript}
       const res = await sample(prompt, { signal: aborter.signal, onText: ({ text }) => { feedbackText = text; renderFeedback(text); }, cache: false });
       feedbackText = res.text; renderFeedback(res.text);
       $("#ai-status").textContent = res.truncated ? "途中で切れました。もう一度押すと最初から書き直します。" : "添削が届きました。「記録する」で一緒に保存できます。";
+      const cs = parseChunks(res.text);
+      if (cs.length && db) { $("#to-chunks").hidden = false; $("#to-chunks").disabled = false; $("#to-chunks").textContent = `チャンク帳に追加（${cs.length}個）`; }
     } catch (e) {
       const code = e && e.code;
       $("#ai-status").textContent = code === "cancelled" ? "" :
         code === "not_granted" ? "Claude の利用が許可されませんでした。ページの権限メニューから許可できます。" :
         code === "rate_limited" ? "混み合っています。少し待ってからもう一度押してください。" :
         "添削を取得できませんでした。もう一度押してください。";
-      if (code === "not_granted") { $("#ai").hidden = true; }
+      if (code === "not_granted") $("#ai").hidden = true;
     } finally { $("#ai").disabled = !sample; }
+  });
+
+  $("#to-chunks").addEventListener("click", async () => {
+    const cs = parseChunks(feedbackText); if (!cs.length || !db) return;
+    $("#to-chunks").disabled = true;
+    try {
+      for (const c of cs) await addChunk(c.en, c.ja, "添削から");
+      $("#to-chunks").textContent = `${cs.length}個を追加しました`;
+    } catch (e) { $("#to-chunks").disabled = false; $("#ai-status").textContent = "チャンク帳に追加できませんでした。"; }
   });
 
   $("#copy").addEventListener("click", async () => {
@@ -494,18 +800,6 @@ ${current.transcript}
     }
   });
 
-  // ---------- history (db) ----------
-  use("db").then((d) => {
-    db = d;
-    if (!db) { $("#hist-empty").textContent = "この表示では記録を保存できません。「結果をコピー」でチャットに貼って記録してください。"; return; }
-    if (current && $("#sample-banner").hidden) $("#save").disabled = false;
-    const timer = setTimeout(() => { $("#hist-empty").textContent = "記録を読み込めませんでした。ページを開き直すと再試行します。"; }, 10000);
-    db.collection("sessions").orderBy("createdAt", "desc").limit(60).onSnapshot((snap) => {
-      clearTimeout(timer);
-      renderHistory(snap.docs.map((x) => x.data()).filter(Boolean));
-    }, () => { clearTimeout(timer); $("#hist-empty").textContent = "記録を読み込めませんでした。"; });
-  });
-
   $("#save").addEventListener("click", async () => {
     if (!db || !current) return;
     $("#save").disabled = true;
@@ -516,16 +810,18 @@ ${current.transcript}
       pauses: r.pauses ?? null, pausesPerMin: r.pausesPerMin ?? null, longPauses: r.longPauses ?? null, maxPause: r.maxPause ?? null,
       repeats: r.repeats.length, fillers: r.fillers, jaChunks: r.jaChunks, feedback: (feedbackText || "").slice(0, 12000),
     };
-    try { await db.collection("sessions").add(doc); $("#ai-status").textContent = "記録しました。"; }
-    catch (e) { $("#ai-status").textContent = "記録できませんでした。権限がない場合は「結果をコピー」を使ってください。"; $("#save").disabled = false; }
+    try {
+      await db.collection("sessions").add(doc);
+      $("#ai-status").textContent = "記録しました。今日の「タスク・サイクル」にチェックを入れました。";
+      const key = ymd(new Date()); if (!(days[key] && days[key].items && days[key].items.task)) setItem(new Date(), "task", true);
+    } catch (e) { $("#ai-status").textContent = "記録できませんでした。権限がない場合は「結果をコピー」を使ってください。"; $("#save").disabled = false; }
   });
 
   function renderHistory(rows) {
     const ul = $("#hist"); ul.innerHTML = "";
     $("#hist-empty").hidden = rows.length > 0;
     for (const r of rows) {
-      const li = document.createElement("li");
-      const d = new Date(r.createdAt);
+      const li = document.createElement("li"); const d = new Date(r.createdAt);
       li.innerHTML = `<span>${esc(r.topic || "")}</span><span class="nums">${fmt(r.wpm)} 語/分<br>ラン ${fmt(r.mlr, 1)}語 · 沈黙 ${fmt(r.pausesPerMin, 1)}/分</span><span class="when">${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} · ${r.words ?? 0}語</span>`;
       ul.appendChild(li);
     }
@@ -536,8 +832,7 @@ ${current.transcript}
 
   function drawSpark(svg, vals) {
     const pts = vals.map((v, i) => [i, v]).filter(([, v]) => v != null && isFinite(v));
-    const muted = "var(--muted)";
-    if (pts.length < 2) { svg.innerHTML = `<text x="150" y="50" text-anchor="middle" font-size="11" fill="${muted}" font-family="var(--f-data)">2回以上記録すると推移が出ます</text>`; return; }
+    if (pts.length < 2) { svg.innerHTML = `<text x="150" y="50" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--f-data)">2回以上記録すると推移が出ます</text>`; return; }
     const W = 300, H = 90, pl = 4, pr = 40, pt = 10, pb = 12;
     const ys = pts.map((p) => p[1]); let lo = Math.min(...ys), hi = Math.max(...ys); if (hi - lo < 1) { hi += 1; lo -= 1; }
     const n = vals.length - 1 || 1;
@@ -551,13 +846,188 @@ ${current.transcript}
       <path d="${area}" fill="var(--speech-soft)" stroke="none"/>
       <path d="${d}" fill="none" stroke="var(--speech)" stroke-width="2" vector-effect="non-scaling-stroke"/>
       <circle cx="${X(li)}" cy="${Y(lv)}" r="3.5" fill="var(--speech)"/>
-      <text x="${W - pr + 6}" y="${Y(hi) + 4}" font-size="10" fill="${muted}" font-family="var(--f-data)">${hi.toFixed(0)}</text>
-      <text x="${W - pr + 6}" y="${Y(lo) + 4}" font-size="10" fill="${muted}" font-family="var(--f-data)">${lo.toFixed(0)}</text>`;
+      <text x="${W - pr + 6}" y="${Y(hi) + 4}" font-size="10" fill="var(--muted)" font-family="var(--f-data)">${hi.toFixed(0)}</text>
+      <text x="${W - pr + 6}" y="${Y(lo) + 4}" font-size="10" fill="var(--muted)" font-family="var(--f-data)">${lo.toFixed(0)}</text>`;
   }
-
   drawSpark($("#chart-wpm"), []); drawSpark($("#chart-mlr"), []);
 
-  // ---------- sample state ----------
+  // ================= CHUNKS (spaced repetition, SM-2 lite) =================
+  let chunks = [];               // [{id, en, ja, note, interval, ease, due, reps, lapses}]
+  let chunksLoaded = false, revealed = false, cardId = null;
+  const DAY = 86400000;
+  const dueList = () => chunks.filter((c) => (c.due || 0) <= Date.now()).sort((a, b) => (a.due || 0) - (b.due || 0));
+
+  function schedule(c, g) {
+    let iv = c.interval || 0, ef = c.ease || 2.5, due, lapses = c.lapses || 0;
+    if (g === 0) { ef = Math.max(1.3, ef - 0.2); iv = 0; due = Date.now() + 10 * 60000; lapses++; }
+    else {
+      if (g === 1) { ef = Math.max(1.3, ef - 0.15); iv = iv ? Math.max(1, iv * 1.2) : 1; }
+      if (g === 2) { iv = !iv ? 1 : iv < 2 ? 3 : iv * ef; }
+      if (g === 3) { ef = ef + 0.15; iv = !iv ? 3 : Math.max(4, iv * ef * 1.3); }
+      iv = Math.round(iv * 10) / 10; due = Date.now() + iv * DAY;
+    }
+    return { interval: iv, ease: Math.round(ef * 100) / 100, due, reps: (c.reps || 0) + 1, lapses, lastReviewed: Date.now() };
+  }
+  const ivLabel = (s) => s.interval === 0 ? "10分" : s.interval < 1 ? `${Math.round(s.interval * 24)}時間` : s.interval < 30 ? `${Math.round(s.interval)}日` : `${Math.round(s.interval / 30)}か月`;
+
+  function renderCard() {
+    const box = $("#card"); const due = dueList();
+    $("#due-count").textContent = chunksLoaded ? `${due.length}件` : "";
+    $("#due-badge").textContent = due.length ? String(due.length) : "";
+    if (!db) { box.innerHTML = `<p class="empty">この表示ではチャンク帳を保存できません。</p>`; return; }
+    if (!chunksLoaded) { box.innerHTML = `<p class="empty">チャンク帳を読み込んでいます…</p>`; return; }
+    if (!chunks.length) { box.innerHTML = `<p class="empty">まだ表現がありません。下の「表現を追加」か、「測る」の添削から追加してください。</p>`; return; }
+    if (!due.length) {
+      const next = chunks.slice().sort((a, b) => a.due - b.due)[0];
+      const when = new Date(next.due);
+      box.innerHTML = `<p class="empty">今日の復習は終わりです。次は ${when.getMonth() + 1}/${when.getDate()} ${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")} ごろ。</p>`;
+      return;
+    }
+    let c = due.find((x) => x.id === cardId) || due[0];
+    if (c.id !== cardId) { cardId = c.id; revealed = false; }
+    const grades = [0, 1, 2, 3].map((g) => `<button class="g${g}" data-g="${g}">${["もう一度", "難しい", "言えた", "簡単"][g]}<small>${ivLabel(schedule(c, g))}</small></button>`).join("");
+    box.innerHTML = `
+      <div class="ja">${esc(c.ja)}</div>
+      ${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}
+      ${revealed ? `<div class="en">${esc(c.en)}</div><div class="grades">${grades}</div>` : `<button id="reveal">声に出して言ってから、答えを見る</button>`}`;
+  }
+
+  $("#card").addEventListener("click", async (e) => {
+    if (e.target.id === "reveal") { revealed = true; renderCard(); return; }
+    const b = e.target.closest("button[data-g]"); if (!b || !db) return;
+    const c = chunks.find((x) => x.id === cardId); if (!c) return;
+    const upd = schedule(c, Number(b.dataset.g));
+    Object.assign(c, upd); revealed = false; cardId = null;
+    renderCard();
+    if (!dueList().length) { const key = ymd(new Date()); if (!(days[key] && days[key].items && days[key].items.chunks)) setItem(new Date(), "chunks", true); }
+    try { await db.doc("chunks/" + c.id).update(upd); } catch (err) { $("#c-status").textContent = "復習結果を保存できませんでした。"; }
+  });
+
+  async function addChunk(en, ja, note) {
+    const doc = { en, ja, note: note || "", interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, createdAt: Date.now() };
+    await db.collection("chunks").add(doc);
+  }
+  $("#c-add").addEventListener("click", async () => {
+    const en = $("#c-en").value.trim(), ja = $("#c-ja").value.trim();
+    if (!en || !ja) { $("#c-status").textContent = "英語と意味の両方を入れてください。"; return; }
+    if (!db) { $("#c-status").textContent = "この表示では保存できません。"; return; }
+    $("#c-add").disabled = true;
+    try { await addChunk(en, ja, ""); $("#c-en").value = ""; $("#c-ja").value = ""; $("#c-status").textContent = "追加しました。"; }
+    catch (e) { $("#c-status").textContent = "追加できませんでした。"; }
+    finally { $("#c-add").disabled = false; }
+  });
+
+  function renderChunkList() {
+    const ul = $("#clist");
+    $("#c-empty").hidden = chunks.length > 0;
+    $("#c-total").textContent = chunks.length ? `${chunks.length}件` : "";
+    ul.innerHTML = chunks.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map((c) => {
+      const d = new Date(c.due || 0); const dueTxt = (c.due || 0) <= Date.now() ? "復習待ち" : `次 ${d.getMonth() + 1}/${d.getDate()}`;
+      return `<li><div><div class="en">${esc(c.en)}</div><div class="ja">${esc(c.ja)}</div></div><div class="due">${dueTxt}<br><button class="quiet" data-del="${esc(c.id)}">削除</button></div></li>`;
+    }).join("");
+  }
+  $("#clist").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-del]"); if (!b || !db) return;
+    if (!b.classList.contains("danger")) { b.classList.remove("quiet"); b.classList.add("danger"); b.textContent = "本当に削除"; setTimeout(() => { if (b.isConnected) { b.classList.remove("danger"); b.classList.add("quiet"); b.textContent = "削除"; } }, 4000); return; }
+    b.disabled = true;
+    try { await db.doc("chunks/" + b.dataset.del).delete(); } catch (err) { b.disabled = false; }
+  });
+
+  // ================= TIMER 4/3/2 =================
+  const tSel = $("#t-topic");
+  TOPICS.filter((t) => t.id !== "432").forEach((t) => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.ja; tSel.appendChild(o); });
+  tSel.value = "intro";
+  const showT = () => { const t = TOPICS.find((x) => x.id === tSel.value); $("#t-topic-en").textContent = t ? t.en : ""; };
+  tSel.addEventListener("change", showT); showT();
+  const ROUNDS = [240, 180, 120];
+  let tRound = 0, tLeft = ROUNDS[0], tRunning = false, tLast = 0, tRaf = 0, tFinished = [false, false, false], wake = null;
+  function clockText(s) { const c = Math.ceil(Math.max(0, s)); return `${Math.floor(c / 60)}:${String(c % 60).padStart(2, "0")}`; }
+  function renderTimer() {
+    $("#rounds").innerHTML = ROUNDS.map((r, i) => `<div class="round ${i === tRound && !tFinished[i] ? "on" : ""} ${tFinished[i] ? "fin" : ""}"><b>${r / 60}分</b><span>${tFinished[i] ? "完了" : i === tRound ? "いま" : `ラウンド${i + 1}`}</span></div>`).join("");
+    $("#clock").textContent = clockText(tLeft);
+    $("#clock").classList.toggle("done", tLeft <= 0);
+    $("#t-track").style.width = (100 - tLeft / ROUNDS[tRound] * 100) + "%";
+    $("#t-start").textContent = tRunning ? "一時停止" : tLeft < ROUNDS[tRound] && tLeft > 0 ? "再開" : "開始";
+    $("#t-start").hidden = tLeft <= 0;
+    $("#t-next").hidden = !(tLeft <= 0 && tRound < 2);
+  }
+  function beep() {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; const ctx = new C();
+      [0, 0.25, 0.5].forEach((t) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.0001, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.2); o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.22); });
+      setTimeout(() => { try { ctx.close(); } catch (e) {} }, 1200);
+    } catch (e) {}
+  }
+  function tick(now) {
+    if (!tRunning) return;
+    tLeft -= (now - tLast) / 1000; tLast = now;
+    if (tLeft <= 0) {
+      tLeft = 0; tRunning = false; tFinished[tRound] = true; beep(); releaseWake();
+      $("#t-status").textContent = tRound < 2 ? `ラウンド${tRound + 1} 終了。同じ内容を、次は ${ROUNDS[tRound + 1] / 60} 分で。` : "3ラウンド完了。お疲れさまでした。今日の「4/3/2」にチェックを入れました。";
+      if (tRound === 2) { const key = ymd(new Date()); if (!(days[key] && days[key].items && days[key].items.fluency)) setItem(new Date(), "fluency", true); }
+      renderTimer(); return;
+    }
+    renderTimer(); tRaf = requestAnimationFrame(tick);
+  }
+  async function holdWake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (e) { wake = null; } }
+  function releaseWake() { try { wake && wake.release(); } catch (e) {} wake = null; }
+  $("#t-start").addEventListener("click", () => {
+    if (tRunning) { tRunning = false; cancelAnimationFrame(tRaf); releaseWake(); $("#t-status").textContent = "一時停止中。"; renderTimer(); return; }
+    tRunning = true; tLast = performance.now(); holdWake();
+    $("#t-status").textContent = `ラウンド${tRound + 1}：${ROUNDS[tRound] / 60}分。止まらずに話し続けて。`;
+    tRaf = requestAnimationFrame(tick); renderTimer();
+  });
+  $("#t-next").addEventListener("click", () => { tRound = Math.min(2, tRound + 1); tLeft = ROUNDS[tRound]; $("#t-status").textContent = `ラウンド${tRound + 1}：${ROUNDS[tRound] / 60}分。準備ができたら開始。`; renderTimer(); });
+  $("#t-reset").addEventListener("click", () => { tRunning = false; cancelAnimationFrame(tRaf); releaseWake(); tRound = 0; tLeft = ROUNDS[0]; tFinished = [false, false, false]; $("#t-status").textContent = "ラウンド1：4分で話します。準備ができたら開始。"; renderTimer(); });
+  renderTimer();
+
+  // ================= SHADOW =================
+  const player = $("#player"); let A = null, B = null, objUrl = null;
+  $("#s-file").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    objUrl = URL.createObjectURL(f); player.src = objUrl; player.playbackRate = Number($("#s-rate").value);
+    $("#s-filename").textContent = f.name; A = B = null; renderAB();
+  });
+  $("#s-rate").addEventListener("change", () => { player.playbackRate = Number($("#s-rate").value); });
+  player.addEventListener("loadedmetadata", () => { player.playbackRate = Number($("#s-rate").value); });
+  $("#s-back").addEventListener("click", () => { player.currentTime = Math.max(0, player.currentTime - 3); });
+  const t2 = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
+  function renderAB() { $("#s-ab").innerHTML = A == null && B == null ? "区間：<b>なし</b>" : `区間：<b>${A != null ? t2(A) : "?"}</b> → <b>${B != null ? t2(B) : "?"}</b>`; }
+  $("#s-a").addEventListener("click", () => { A = player.currentTime; if (B != null && B <= A) B = null; renderAB(); });
+  $("#s-b").addEventListener("click", () => { const t = player.currentTime; if (A == null || t <= A) return; B = t; player.currentTime = A; renderAB(); });
+  $("#s-clear").addEventListener("click", () => { A = B = null; renderAB(); });
+  player.addEventListener("timeupdate", () => { if (A != null && B != null && player.currentTime >= B) player.currentTime = A; });
+  const sc = load("fl-script"); if (sc) $("#s-script").value = sc;
+  $("#s-script").addEventListener("input", (e) => store("fl-script", e.target.value));
+
+  // ================= capabilities =================
+  use("sample").then((s) => {
+    sample = s;
+    if (current && $("#sample-banner").hidden) $("#ai").disabled = !sample || !current.words;
+    if (!s) $("#ai").title = "この表示では Claude の添削は使えません";
+  });
+
+  use("db").then((d) => {
+    db = d;
+    renderToday(); renderCard();
+    if (!db) { $("#hist-empty").textContent = "この表示では記録を保存できません。「結果をコピー」でチャットに貼って記録してください。"; return; }
+    if (current && $("#sample-banner").hidden) $("#save").disabled = false;
+    const timer = setTimeout(() => { $("#hist-empty").textContent = "記録を読み込めませんでした。ページを開き直すと再試行します。"; }, 10000);
+    db.collection("sessions").orderBy("createdAt", "desc").limit(60).onSnapshot((snap) => {
+      clearTimeout(timer); renderHistory(snap.docs.map((x) => x.data()).filter(Boolean));
+    }, () => { clearTimeout(timer); $("#hist-empty").textContent = "記録を読み込めませんでした。"; });
+    db.collection("days").onSnapshot((snap) => {
+      const next = {}; snap.docs.forEach((x) => { const v = x.data(); if (v) next[x.id] = { date: x.id, items: Object.assign({}, v.items || {}), minutes: v.minutes || 0 }; });
+      days = next; daysLoaded = true; renderToday();
+    }, () => { $("#s-pace-text").textContent = "記録を読み込めませんでした。"; });
+    db.collection("chunks").onSnapshot((snap) => {
+      chunks = snap.docs.map((x) => Object.assign({ id: x.id }, x.data() || {}));
+      chunksLoaded = true; renderCard(); renderChunkList();
+    }, () => { $("#card").innerHTML = `<p class="empty">チャンク帳を読み込めませんでした。</p>`; });
+  });
+
+  // ================= sample result for the measure view =================
   (function showSample() {
     const runs = [[0.3, 2.9], [3.3, 5.1], [6.6, 9.8], [10.2, 11.4], [13.1, 16.2], [16.6, 18.0], [18.4, 21.7], [23.4, 25.0], [25.4, 28.9], [29.3, 31.0], [32.4, 35.6], [36.0, 37.2], [39.1, 42.5], [42.9, 45.8], [46.3, 48.0], [49.6, 52.9], [53.3, 56.0], [56.5, 59.4]];
     const env = []; for (let k = 0; k < 600; k++) { const t = (k / 600) * 60; const on = runs.some(([a, b]) => t >= a && t <= b); env.push(on ? 0.45 + 0.4 * Math.abs(Math.sin(k * 0.7)) : 0.03); }
@@ -567,5 +1037,7 @@ ${current.transcript}
     r.topic = "昨日やったこと（サンプル）"; r.topicEn = TOPICS[0].en; r.transcript = text;
     renderResult(r, a, true);
   })();
+
+  renderToday(); renderCard(); route();
 })();
 </script>
