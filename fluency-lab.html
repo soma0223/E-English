@@ -226,6 +226,22 @@ table.cmp .down { color: var(--long); font-weight: 600; }
 table.cmp .flat { color: var(--muted); }
 .mini { display: block; height: 4px; border-radius: 2px; background: var(--speech); margin-top: 3px; margin-left: auto; opacity: .7; }
 
+.mat-days { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mat-days .d { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-family: var(--f-data); font-size: .72rem; color: var(--muted); }
+.mat-days .d.on { background: var(--speech); border-color: var(--speech); color: var(--surface); }
+.mat-days .d.extra { border-style: dashed; }
+.mat-days .lbl { font-size: .82rem; color: var(--muted); margin-left: 4px; }
+.segs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.segs li { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.segs .nm { flex: 1; min-width: 0; font-size: .85rem; overflow-wrap: anywhere; }
+.segs .tm { font-family: var(--f-data); font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.sents { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 2px; }
+.sents li { font-family: var(--f-data); font-size: .86rem; line-height: 1.6; }
+.sents li button { all: unset; cursor: pointer; display: block; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; overflow-wrap: anywhere; }
+.sents li button:focus-visible { outline: 2px solid var(--speech); outline-offset: 1px; }
+.sents li.hard button { border-color: var(--long); background: color-mix(in srgb, var(--long) 10%, var(--surface)); }
+.sents li .act { display: flex; gap: 6px; margin: 2px 0 6px 8px; }
+
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -475,12 +491,38 @@ audio { width: 100%; }
   <!-- ================= SHADOW ================= -->
   <div class="view" id="v-shadow" hidden>
     <section>
+      <h2><span class="step">MATERIAL</span>今の素材</h2>
+      <div class="panel">
+        <div class="row">
+          <label for="m-select" class="hint">素材</label>
+          <select id="m-select" style="flex:1;min-width:0"></select>
+        </div>
+        <div class="mat-days" id="m-days"></div>
+        <p class="hint" id="m-advice"></p>
+        <details id="m-new-box">
+          <summary>新しい素材を登録</summary>
+          <div class="two" style="margin-top:8px">
+            <div><label for="m-name">名前</label><input type="text" id="m-name" placeholder="6 Minute English: Scared of speaking English?"></div>
+            <div><label for="m-where">どこで聞くか（任意）</label><input type="text" id="m-where" placeholder="Podcasts アプリ / BBC のページ"></div>
+          </div>
+          <div class="row" style="margin-top:8px"><button id="m-add">登録する</button></div>
+        </details>
+        <div class="row">
+          <button class="ghost" id="m-today">今日この素材で練習した</button>
+          <button class="quiet" id="m-del">この素材を削除</button>
+        </div>
+        <p class="status" id="m-status" role="status"></p>
+      </div>
+    </section>
+
+    <section>
       <h2><span class="step">SHADOW</span>聞いて、すぐ後ろを追いかける</h2>
       <div class="panel">
         <div class="row">
           <span class="file"><input type="file" id="s-file" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac" aria-label="音声ファイルを選ぶ">音声ファイルを選ぶ</span>
           <span class="filename" id="s-filename">未選択</span>
         </div>
+        <p class="hint">Podcasts アプリで聞く場合はファイルなしで大丈夫です。下の手順とスクリプトだけ使ってください（速度変更・15秒戻る・文字起こしはアプリ側でできます）。</p>
         <audio id="player" controls preload="metadata"></audio>
         <div class="row">
           <button class="ghost" id="s-back">◀ 3秒</button>
@@ -496,7 +538,12 @@ audio { width: 100%; }
           <button class="quiet" id="s-clear">区間を解除</button>
           <span class="ab" id="s-ab">区間：<b>なし</b></span>
         </div>
-        <p class="hint">A と B を決めると、その区間だけをくり返し再生します。1文〜2文ずつ区切るのがおすすめ。</p>
+        <div class="row">
+          <input type="text" id="seg-name" placeholder="区間の名前（例：Hanan の最初の文）" style="flex:1;min-width:0">
+          <button class="ghost" id="seg-save" disabled>区間を保存</button>
+        </div>
+        <ul class="segs" id="segs"></ul>
+        <p class="hint">A と B を決めるとその区間だけをくり返します。保存した区間は、同じ音声ファイルを入れ直せばワンタップで呼び出せます。</p>
       </div>
     </section>
     <section>
@@ -509,10 +556,13 @@ audio { width: 100%; }
       </div>
     </section>
     <section>
-      <h2><span class="step">SCRIPT</span>スクリプト</h2>
+      <h2><span class="step">SCRIPT</span>スクリプト <span class="hint" id="hard-count"></span></h2>
       <div class="panel">
         <label for="s-script">音声の英文（字幕や書き起こしを貼る）</label>
-        <textarea id="s-script" placeholder="英文を貼っておくと、ここを見ながら練習できます。"></textarea>
+        <textarea id="s-script" placeholder="英文を貼っておくと、下に1文ずつ並びます。"></textarea>
+        <p class="hint">手順⑦で<strong>言えなかった・崩れた文をタップ</strong>して印を付けます。印の付いた文は次の日も重点的に。言えるようになったらもう一度タップで外します。</p>
+        <ol class="sents" id="sents"></ol>
+        <p class="status" id="sent-status" role="status"></p>
       </div>
     </section>
   </div>
@@ -550,6 +600,7 @@ audio { width: 100%; }
   ];
   let db = null, sample = null;
   const dbReady = [];
+  let dbChecked = false;
 
   // ================= TODAY =================
   // skills: [listening, pronunciation, fluency, accuracy, vocab, interaction]  2 = main, 1 = some
@@ -1322,7 +1373,7 @@ ${body}`;
   player.addEventListener("loadedmetadata", () => { player.playbackRate = Number($("#s-rate").value); });
   $("#s-back").addEventListener("click", () => { player.currentTime = Math.max(0, player.currentTime - 3); });
   const t2 = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
-  function renderAB() { $("#s-ab").innerHTML = A == null && B == null ? "区間：<b>なし</b>" : `区間：<b>${A != null ? t2(A) : "?"}</b> → <b>${B != null ? t2(B) : "?"}</b>`; }
+  function renderAB() { $("#s-ab").innerHTML = A == null && B == null ? "区間：<b>なし</b>" : `区間：<b>${A != null ? t2(A) : "?"}</b> → <b>${B != null ? t2(B) : "?"}</b>`; if (typeof renderSegs === "function") try { renderSegs(); } catch (e) {} }
   $("#s-a").addEventListener("click", () => { A = player.currentTime; if (B != null && B <= A) B = null; renderAB(); });
   $("#s-b").addEventListener("click", () => { const t = player.currentTime; if (A == null || t <= A) return; B = t; player.currentTime = A; renderAB(); });
   $("#s-clear").addEventListener("click", () => { A = B = null; renderAB(); });
@@ -1357,14 +1408,147 @@ ${body}`;
     if (stepsDone.length === STEPS.length) {
       const key = ymd(new Date());
       if (db && !(days[key] && days[key].items && days[key].items.shadow)) setItem(new Date(), "shadow", true);
+      markMatToday();
       $("#sh-status").textContent = db ? "8ステップ完了。今日の「シャドーイング」にチェックを入れました。" : "8ステップ完了。";
     } else $("#sh-status").textContent = "";
   });
   $("#sh-reset").addEventListener("click", () => { stepsDone = []; store(stepKey(), "[]"); renderSteps(); $("#sh-status").textContent = ""; });
   renderSteps();
 
-  const sc = load("fl-script"); if (sc) $("#s-script").value = sc;
-  $("#s-script").addEventListener("input", (e) => store("fl-script", e.target.value));
+  // ---------- materials: days used, saved segments, hard sentences ----------
+  let mats = [], matsLoaded = false, curMat = load("fl-mat") || "";
+  const matOf = () => mats.find((m) => m.id === curMat) || null;
+  let matWrite = Promise.resolve();
+  function matUpdate(m, data) {
+    Object.assign(m, data);
+    if (!db) return;
+    matWrite = matWrite.then(() => db.doc("materials/" + m.id).update(data)).catch(() => { $("#m-status").textContent = "素材の変更を保存できませんでした。"; });
+  }
+  const splitSentences = (txt) => txt.split(/\n+/).flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-Z"“'‘(])/))
+    .map((x) => x.trim()).filter((x) => x && /[A-Za-z]/.test(x) && (x.split(/\s+/).length > 2 || /[.!?]$/.test(x)));
+
+  function renderMats() {
+    const sel = $("#m-select");
+    if (!db && !dbChecked) { sel.innerHTML = `<option>読み込んでいます…</option>`; sel.disabled = true; return; }
+    if (!db) {
+      sel.innerHTML = `<option>この表示では素材を保存できません</option>`; sel.disabled = true;
+      ["#m-add", "#m-today", "#m-del"].forEach((q) => $(q).disabled = true);
+      $("#m-days").innerHTML = ""; $("#m-advice").textContent = "スクリプトはこの端末にだけ保存されます。";
+      renderSents(); renderSegs(); return;
+    }
+    if (!matsLoaded) { sel.innerHTML = `<option>読み込んでいます…</option>`; return; }
+    $("#m-add").disabled = false;
+    const sorted = mats.slice().sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+    if (!sorted.length) {
+      sel.innerHTML = `<option value="">まだ素材がありません（下で登録）</option>`; sel.disabled = true; curMat = "";
+      $("#m-new-box").open = true;
+    } else {
+      sel.disabled = false;
+      if (!matOf()) curMat = sorted[0].id;
+      sel.innerHTML = sorted.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
+      sel.value = curMat;
+    }
+    const m = matOf();
+    $("#m-today").disabled = !m; $("#m-del").disabled = !m;
+    const n = m ? (m.days || []).length : 0, today = ymd(new Date()), doneToday = !!(m && (m.days || []).includes(today));
+    $("#m-days").innerHTML = m ? [1, 2, 3, 4, 5].map((k) => `<span class="d ${k <= n ? "on" : ""} ${k > 3 ? "extra" : ""}">${k}</span>`).join("") + `<span class="lbl">${n}日目${n > 5 ? `（+${n - 5}）` : ""}・目安 3〜5日</span>` : "";
+    $("#m-today").textContent = doneToday ? "今日は記録済み" : "今日この素材で練習した";
+    if (doneToday) $("#m-today").disabled = true;
+    const hard = m ? (m.hard || []).length : 0;
+    $("#m-advice").textContent = !m ? "素材を登録すると、続けた日数・保存した区間・崩れた文がまとめて残ります。" :
+      n === 0 ? "8ステップを終えるか「今日この素材で練習した」を押すと、1日目として記録されます。" :
+      n < 3 ? `${n}日目。同じ素材をあと${3 - n}日以上続けると、意味を考えなくてよくなり、音そのものに集中できます。` :
+      n < 5 ? `${n}日目。${hard ? `印の付いた文があと${hard}文。これがほぼなくなったら次の素材へ。` : "印の付いた文がなければ、次の素材に進んでもOKです。"}` :
+      `${n}日目。目安の5日に届きました。${hard ? `残っている${hard}文だけ A〜B 区間で仕上げて、` : ""}次は少しだけ難しい素材に進みましょう。`;
+    if (document.activeElement !== $("#s-script")) $("#s-script").value = m ? (m.script || "") : "";
+    renderSents(); renderSegs();
+  }
+  $("#m-select").addEventListener("change", (e) => { curMat = e.target.value; store("fl-mat", curMat); renderMats(); });
+  $("#m-add").addEventListener("click", async () => {
+    const name = $("#m-name").value.trim(); if (!name) { $("#m-status").textContent = "素材の名前を入れてください。"; return; }
+    if (!db) return;
+    $("#m-add").disabled = true;
+    try {
+      const ref = await db.collection("materials").add({ name, where: $("#m-where").value.trim(), script: "", segments: [], days: [], hard: [], createdAt: Date.now(), lastUsed: Date.now() });
+      curMat = ref.id; store("fl-mat", curMat); $("#m-name").value = ""; $("#m-where").value = ""; $("#m-new-box").open = false;
+      $("#m-status").textContent = "登録しました。スクリプトを下に貼ってください。"; renderMats();
+    } catch (e) { $("#m-status").textContent = "登録できませんでした。"; }
+    finally { $("#m-add").disabled = false; }
+  });
+  function markMatToday() {
+    const m = matOf(); if (!m) return false;
+    const today = ymd(new Date()); if ((m.days || []).includes(today)) return false;
+    matUpdate(m, { days: (m.days || []).concat(today), lastUsed: Date.now() }); renderMats(); return true;
+  }
+  $("#m-today").addEventListener("click", () => { if (markMatToday()) $("#m-status").textContent = "今日の分を記録しました。"; });
+  $("#m-del").addEventListener("click", async () => {
+    const b = $("#m-del"), m = matOf(); if (!m || !db) return;
+    if (!b.classList.contains("danger")) { b.classList.replace("quiet", "danger"); b.textContent = "本当に削除（区間と印も消えます）"; setTimeout(() => { if (b.classList.contains("danger")) { b.classList.replace("danger", "quiet"); b.textContent = "この素材を削除"; } }, 4000); return; }
+    b.classList.replace("danger", "quiet"); b.textContent = "この素材を削除";
+    try { await db.doc("materials/" + m.id).delete(); curMat = ""; $("#m-status").textContent = "削除しました。"; } catch (e) { $("#m-status").textContent = "削除できませんでした。"; }
+  });
+
+  // script: bound to the material (falls back to this device only)
+  let scriptTimer = 0;
+  $("#s-script").addEventListener("input", (e) => {
+    const v = e.target.value, m = matOf();
+    if (!db || !m) { store("fl-script", v); renderSents(); return; }
+    m.script = v; renderSents();
+    clearTimeout(scriptTimer); scriptTimer = setTimeout(() => matUpdate(m, { script: v.slice(0, 20000) }), 800);
+  });
+  { const sc = load("fl-script"); if (sc) $("#s-script").value = sc; }
+
+  function renderSents() {
+    const m = matOf(), txt = m ? (m.script || "") : $("#s-script").value;
+    const hard = new Set(m ? (m.hard || []) : []);
+    const list = splitSentences(txt);
+    $("#hard-count").textContent = hard.size ? `印 ${hard.size}文` : "";
+    $("#sents").innerHTML = list.map((x) => `<li class="${hard.has(x) ? "hard" : ""}"><button data-sent="${esc(x)}" aria-pressed="${hard.has(x)}">${esc(x)}</button>${hard.has(x) && db ? `<div class="act"><button class="quiet" data-tochunk="${esc(x)}">チャンク帳へ</button></div>` : ""}</li>`).join("");
+  }
+  $("#sents").addEventListener("click", async (e) => {
+    const m = matOf();
+    const tc = e.target.closest("button[data-tochunk]");
+    if (tc) {
+      if (!db) return; tc.disabled = true; tc.textContent = "追加中…";
+      const en = tc.dataset.tochunk; let ja = "";
+      if (sample) { try { const r = await sample(`次の英文を自然な日本語に訳してください。訳文だけを1行で返すこと。\n${en}`, { modelTier: "quick" }); ja = (r.text || "").trim().split("\n")[0].slice(0, 300); } catch (err) {} }
+      try { await addChunk(en, ja || `（${m ? m.name : "素材"} の文）`, "シャドーイングで崩れた文", "素材から"); tc.textContent = "追加しました"; }
+      catch (err) { tc.disabled = false; tc.textContent = "チャンク帳へ"; $("#sent-status").textContent = "追加できませんでした。"; }
+      return;
+    }
+    const b = e.target.closest("button[data-sent]"); if (!b) return;
+    if (!m || !db) { $("#sent-status").textContent = "印を残すには、先に素材を登録してください。"; return; }
+    const x = b.dataset.sent, hard = new Set(m.hard || []);
+    hard.has(x) ? hard.delete(x) : hard.add(x);
+    matUpdate(m, { hard: Array.from(hard) }); renderSents(); renderMats();
+  });
+
+  // saved A–B segments
+  function renderSegs() {
+    const m = matOf(), segs = m ? (m.segments || []) : [];
+    $("#seg-save").disabled = !(m && db && A != null && B != null);
+    $("#segs").innerHTML = segs.map((g, i) => `<li><span class="nm">${esc(g.name)}</span><span class="tm">${t2(g.a)}–${t2(g.b)}</span><button class="ghost speak" data-seg="${i}" ${player.src ? "" : "disabled title=\"音声ファイルを入れると再生できます\""}>▶ くり返す</button><button class="quiet" data-segdel="${i}" aria-label="削除">×</button></li>`).join("");
+  }
+  $("#seg-save").addEventListener("click", () => {
+    const m = matOf(); if (!m || A == null || B == null) return;
+    const name = $("#seg-name").value.trim() || `区間${(m.segments || []).length + 1}`;
+    matUpdate(m, { segments: (m.segments || []).concat({ name: name.slice(0, 80), a: Math.round(A * 10) / 10, b: Math.round(B * 10) / 10 }) });
+    $("#seg-name").value = ""; renderSegs();
+  });
+  $("#segs").addEventListener("click", (e) => {
+    const m = matOf(); if (!m) return;
+    const p = e.target.closest("button[data-seg]");
+    if (p) { const g = (m.segments || [])[Number(p.dataset.seg)]; if (!g || !player.src) return; A = g.a; B = g.b; player.currentTime = A; renderAB(); player.play().catch(() => {}); return; }
+    const d = e.target.closest("button[data-segdel]");
+    if (d) { const segs = (m.segments || []).slice(); segs.splice(Number(d.dataset.segdel), 1); matUpdate(m, { segments: segs }); renderSegs(); }
+  });
+  dbReady.push(() => {
+    db.collection("materials").onSnapshot((snap) => {
+      mats = snap.docs.map((x) => Object.assign({ id: x.id }, JSON.parse(JSON.stringify(x.data() || {}))));
+      matsLoaded = true; renderMats();
+    }, () => { $("#m-status").textContent = "素材を読み込めませんでした。"; });
+  });
+  renderMats();
 
   // ================= capabilities =================
   use("sample").then((s) => {
@@ -1376,6 +1560,7 @@ ${body}`;
 
   use("db").then((d) => {
     db = d;
+    dbChecked = true; if (!db) renderMats();
     renderToday(); renderCard();
     if (!db) { $("#hist-empty").textContent = "この表示では記録を保存できません。「結果をコピー」でチャットに貼って記録してください。"; return; }
     if (current && $("#sample-banner").hidden) $("#save").disabled = false;
