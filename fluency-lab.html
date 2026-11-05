@@ -168,6 +168,14 @@ details p { margin: 8px 0 0; }
 .grades button small { font-family: var(--f-data); font-weight: 400; font-size: .7rem; opacity: .85; }
 .grades .g0 { background: transparent; color: var(--long); border-color: var(--long); }
 .grades .g1 { background: transparent; color: var(--pause); border-color: var(--pause); }
+.card .cloze { font-family: var(--f-data); font-size: 1.05rem; letter-spacing: .02em; overflow-wrap: anywhere; }
+.card .kind { font-size: .72rem; color: var(--muted); letter-spacing: .04em; }
+.card .say { display: flex; gap: 8px; align-items: flex-start; }
+.card .say .en { flex: 1; min-width: 0; }
+.speak { padding: 4px 10px; font-size: .78rem; font-weight: 700; background: transparent; color: var(--speech); border-color: var(--line); flex: 0 0 auto; }
+.examples { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.examples .ex-en { font-family: var(--f-data); font-size: .88rem; overflow-wrap: anywhere; }
+.examples .ex-ja { font-size: .78rem; color: var(--muted); }
 .clist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .clist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 0; border-top: 1px solid var(--line); align-items: center; }
 .clist li:first-child { border-top: 0; }
@@ -356,8 +364,17 @@ audio { width: 100%; }
     <section>
       <h2><span class="step">REVIEW</span>今日の復習 <span class="hint" id="due-count"></span></h2>
       <div class="panel">
-        <p class="hint">日本語を見て、英語を<strong>声に出して</strong>言ってから答えを見る。思い出す努力そのものが記憶を強くします（検索練習効果）。間隔は答えた手応えで自動調整されます。</p>
+        <p class="hint">英語を<strong>声に出して</strong>言ってから答えを見る。思い出す努力そのものが記憶を強くします（検索練習効果）。間隔は答えた手応えで自動調整されます。</p>
+        <div class="row">
+          <label for="c-mode" class="hint">出題の形</label>
+          <select id="c-mode" style="width:auto">
+            <option value="mix">ミックス（おすすめ）</option>
+            <option value="ja">日本語 → 英語</option>
+            <option value="cloze">頭文字ヒント</option>
+          </select>
+        </div>
         <div class="card" id="card"></div>
+        <div class="stats" id="c-stats"></div>
       </div>
     </section>
 
@@ -367,6 +384,14 @@ audio { width: 100%; }
         <div class="two">
           <div><label for="c-en">英語</label><input type="text" id="c-en" placeholder="What makes Google different is that …"></div>
           <div><label for="c-ja">意味・使いどころ</label><input type="text" id="c-ja" placeholder="Google が他と違うのは〜という点"></div>
+        </div>
+        <div class="row">
+          <label for="c-src" class="hint">出どころ</label>
+          <select id="c-src" style="width:auto">
+            <option value="添削から">添削から（言えなかった表現）</option>
+            <option value="素材から">素材から（シャドーイング・多聴・多読）</option>
+            <option value="その他">その他</option>
+          </select>
         </div>
         <div class="row"><button id="c-add">追加する</button><p class="status" id="c-status" role="status"></p></div>
         <p class="hint">「測る」で Claude の添削を受けると、【覚えるチャンク】をボタン一つでここに追加できます。チャットで添削したものは Claude がここに直接入れることもできます。</p>
@@ -829,7 +854,7 @@ ${current.transcript}
     const cs = parseChunks(feedbackText); if (!cs.length || !db) return;
     $("#to-chunks").disabled = true;
     try {
-      for (const c of cs) await addChunk(c.en, c.ja, "添削から");
+      for (const c of cs) await addChunk(c.en, c.ja, "", "添削から");
       $("#to-chunks").textContent = `${cs.length}個を追加しました`;
     } catch (e) { $("#to-chunks").disabled = false; $("#ai-status").textContent = "チャンク帳に追加できませんでした。"; }
   });
@@ -915,10 +940,55 @@ ${current.transcript}
   }
   const ivLabel = (s) => s.interval === 0 ? "10分" : s.interval < 1 ? `${Math.round(s.interval * 24)}時間` : s.interval < 30 ? `${Math.round(s.interval)}日` : `${Math.round(s.interval / 30)}か月`;
 
+  // ---- cloze: first-letter cues on about half of the content words ----
+  const STOP = new Set("a an the is are was were be been am i you he she it we they to of in on at for and or but so that this with as by my your our their me him her them do does did not just what how why when".split(" "));
+  function clozeOf(en) {
+    let k = 0;
+    return en.replace(/[A-Za-z][A-Za-z']*/g, (w) => {
+      if (w.length < 3 || STOP.has(w.toLowerCase())) return w;
+      k++;
+      return k % 2 === 1 ? w[0] + "_".repeat(w.length - 1) : w;
+    });
+  }
+  const cardKind = (c) => {
+    const m = $("#c-mode").value;
+    if (m === "ja") return "ja";
+    if (m === "cloze") return "cloze";
+    return (c.reps || 0) % 2 === 1 ? "cloze" : "ja";   // alternate: recall from meaning, then from partial cue
+  };
+  $("#c-mode").addEventListener("change", () => { store("fl-cmode", $("#c-mode").value); revealed = false; renderCard(); });
+  { const m = load("fl-cmode"); if (m && ["mix", "ja", "cloze"].includes(m)) $("#c-mode").value = m; }
+
+  // ---- read aloud ----
+  const canSpeak = "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+  function speak(text) {
+    if (!canSpeak) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US"; u.rate = 0.95;
+      const v = speechSynthesis.getVoices().find((x) => /^en(-|_)US/i.test(x.lang)) || speechSynthesis.getVoices().find((x) => /^en/i.test(x.lang));
+      if (v) u.voice = v;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  const speakBtn = (text) => canSpeak ? `<button class="speak" data-speak="${esc(text)}" aria-label="読み上げ">▶ 音声</button>` : "";
+
+  function renderStats() {
+    const now = Date.now(), start = new Date(); start.setHours(0, 0, 0, 0);
+    const mastered = chunks.filter((c) => (c.interval || 0) >= 21).length;
+    const today = chunks.filter((c) => (c.lastReviewed || 0) >= start.getTime()).length;
+    $("#c-stats").innerHTML = !chunksLoaded || !chunks.length ? "" : `
+      <div class="stat"><span class="k">今日復習した</span><span class="v">${today}<small>件</small></span></div>
+      <div class="stat"><span class="k">定着（3週間以上空けて言えた）</span><span class="v">${mastered}<small>/${chunks.length}</small></span></div>
+      <div class="stat"><span class="k">復習待ち</span><span class="v">${chunks.filter((c) => (c.due || 0) <= now).length}<small>件</small></span></div>`;
+  }
+
   function renderCard() {
     const box = $("#card"); const due = dueList();
     $("#due-count").textContent = chunksLoaded ? `${due.length}件` : "";
     $("#due-badge").textContent = due.length ? String(due.length) : "";
+    renderStats();
     if (!db) { box.innerHTML = `<p class="empty">この表示ではチャンク帳を保存できません。</p>`; return; }
     if (!chunksLoaded) { box.innerHTML = `<p class="empty">チャンク帳を読み込んでいます…</p>`; return; }
     if (!chunks.length) { box.innerHTML = `<p class="empty">まだ表現がありません。下の「表現を追加」か、「測る」の添削から追加してください。</p>`; return; }
@@ -930,15 +1000,42 @@ ${current.transcript}
     }
     let c = due.find((x) => x.id === cardId) || due[0];
     if (c.id !== cardId) { cardId = c.id; revealed = false; }
+    const kind = cardKind(c);
     const grades = [0, 1, 2, 3].map((g) => `<button class="g${g}" data-g="${g}">${["もう一度", "難しい", "言えた", "簡単"][g]}<small>${ivLabel(schedule(c, g))}</small></button>`).join("");
-    box.innerHTML = `
-      <div class="ja">${esc(c.ja)}</div>
-      ${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}
-      ${revealed ? `<div class="en">${esc(c.en)}</div><div class="grades">${grades}</div>` : `<button id="reveal">声に出して言ってから、答えを見る</button>`}`;
+    const exs = Array.isArray(c.examples) ? c.examples : [];
+    const examples = exs.length ? `<div class="examples"><span class="kind">自分用の例文</span>${exs.map((x) => `<div class="say"><div><div class="ex-en">${esc(x.en)}</div><div class="ex-ja">${esc(x.ja || "")}</div></div>${speakBtn(x.en)}</div>`).join("")}</div>`
+      : sample ? `<button class="ghost" id="gen-ex">自分用の例文を作る</button>` : "";
+    const prompt = kind === "cloze"
+      ? `<span class="kind">頭文字ヒント：空欄を埋めて全文を声に出す</span><div class="cloze">${esc(clozeOf(c.en))}</div><div class="note">${esc(c.ja)}</div>`
+      : `<span class="kind">日本語 → 英語：英語で声に出す</span><div class="ja">${esc(c.ja)}</div>${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}`;
+    box.innerHTML = `${prompt}
+      ${revealed ? `<div class="say"><div class="en">${esc(c.en)}</div>${speakBtn(c.en)}</div>${examples}<div class="grades">${grades}</div>` : `<button id="reveal">声に出して言ってから、答えを見る</button>`}
+      <p class="status" id="ex-status" role="status"></p>`;
+  }
+
+  async function genExamples(c) {
+    const btn = $("#gen-ex"); if (btn) { btn.disabled = true; btn.textContent = "作成中…"; }
+    const prompt = `英語学習者のための例文を作ってください。学習者は慶應義塾大学の経済学部の学生で、CEFR B1。来年 Google の英語面接を受ける予定。
+次の表現を自然に使った、話し言葉の英文を2つ作ってください。1つは学生生活や日常の場面、もう1つは面接や仕事の場面にすること。B1+〜B2 レベルで、1文あたり20語以内。
+表現: ${c.en}
+意味: ${c.ja}
+JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "自然な日本語訳"}]`;
+    try {
+      const v = await sample.json(prompt, { modelTier: "quick" });
+      const arr = (Array.isArray(v) ? v : []).filter((x) => x && typeof x.en === "string").slice(0, 2).map((x) => ({ en: x.en.slice(0, 300), ja: String(x.ja || "").slice(0, 300) }));
+      if (!arr.length) throw new Error("empty");
+      c.examples = arr; renderCard();
+      await db.doc("chunks/" + c.id).update({ examples: arr });
+    } catch (e) {
+      const s = $("#ex-status"); if (s) s.textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : "例文を作れませんでした。もう一度押してください。";
+      const b = $("#gen-ex"); if (b) { b.disabled = false; b.textContent = "自分用の例文を作る"; }
+    }
   }
 
   $("#card").addEventListener("click", async (e) => {
-    if (e.target.id === "reveal") { revealed = true; renderCard(); return; }
+    if (e.target.id === "reveal") { revealed = true; renderCard(); const c = chunks.find((x) => x.id === cardId); if (c) speak(c.en); return; }
+    const sp = e.target.closest("button[data-speak]"); if (sp) { speak(sp.dataset.speak); return; }
+    if (e.target.id === "gen-ex") { const c = chunks.find((x) => x.id === cardId); if (c && sample && db) genExamples(c); return; }
     const b = e.target.closest("button[data-g]"); if (!b || !db) return;
     const c = chunks.find((x) => x.id === cardId); if (!c) return;
     const upd = schedule(c, Number(b.dataset.g));
@@ -948,8 +1045,8 @@ ${current.transcript}
     try { await db.doc("chunks/" + c.id).update(upd); } catch (err) { $("#c-status").textContent = "復習結果を保存できませんでした。"; }
   });
 
-  async function addChunk(en, ja, note) {
-    const doc = { en, ja, note: note || "", interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, createdAt: Date.now() };
+  async function addChunk(en, ja, note, source) {
+    const doc = { en, ja, note: note || "", source: source || "その他", interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, createdAt: Date.now() };
     await db.collection("chunks").add(doc);
   }
   $("#c-add").addEventListener("click", async () => {
@@ -957,7 +1054,7 @@ ${current.transcript}
     if (!en || !ja) { $("#c-status").textContent = "英語と意味の両方を入れてください。"; return; }
     if (!db) { $("#c-status").textContent = "この表示では保存できません。"; return; }
     $("#c-add").disabled = true;
-    try { await addChunk(en, ja, ""); $("#c-en").value = ""; $("#c-ja").value = ""; $("#c-status").textContent = "追加しました。"; }
+    try { await addChunk(en, ja, "", $("#c-src").value); $("#c-en").value = ""; $("#c-ja").value = ""; $("#c-status").textContent = "追加しました。"; }
     catch (e) { $("#c-status").textContent = "追加できませんでした。"; }
     finally { $("#c-add").disabled = false; }
   });
@@ -968,7 +1065,7 @@ ${current.transcript}
     $("#c-total").textContent = chunks.length ? `${chunks.length}件` : "";
     ul.innerHTML = chunks.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map((c) => {
       const d = new Date(c.due || 0); const dueTxt = (c.due || 0) <= Date.now() ? "復習待ち" : `次 ${d.getMonth() + 1}/${d.getDate()}`;
-      return `<li><div><div class="en">${esc(c.en)}</div><div class="ja">${esc(c.ja)}</div></div><div class="due">${dueTxt}<br><button class="quiet" data-del="${esc(c.id)}">削除</button></div></li>`;
+      return `<li><div><div class="en">${esc(c.en)}</div><div class="ja">${esc(c.ja)}</div>${c.source || c.note ? `<span class="tags"><span class="tag">${esc(c.source || (/添削/.test(c.note) ? "添削から" : "その他"))}</span></span>` : ""}</div><div class="due">${dueTxt}<br><button class="quiet" data-del="${esc(c.id)}">削除</button></div></li>`;
     }).join("");
   }
   $("#clist").addEventListener("click", async (e) => {
