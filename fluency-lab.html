@@ -191,8 +191,33 @@ details p { margin: 8px 0 0; }
 .track span { display: block; height: 100%; background: var(--speech); width: 0; }
 .center { justify-content: center; }
 
+/* skills */
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.tag { font-size: .68rem; line-height: 1.5; padding: 0 7px; border-radius: 999px; background: var(--speech-soft); color: var(--speech); font-weight: 700; }
+.skills-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .8rem; color: var(--muted); }
+.map-wrap { overflow-x: auto; }
+table.map { border-collapse: collapse; width: 100%; min-width: 440px; font-size: .8rem; }
+table.map th, table.map td { padding: 6px 4px; border-top: 1px solid var(--line); text-align: center; }
+table.map th:first-child, table.map td:first-child { text-align: left; padding-left: 0; white-space: nowrap; }
+table.map thead th { border-top: 0; color: var(--muted); font-weight: 500; font-size: .74rem; white-space: nowrap; }
+table.map .full { color: var(--speech); font-size: 1rem; }
+table.map .half { color: var(--speech); opacity: .6; font-size: .9rem; }
+table.map .none { color: var(--line); }
+
 /* shadow */
 audio { width: 100%; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.steps li { border-top: 1px solid var(--line); }
+.steps li:first-child { border-top: 0; }
+.steps label { display: grid; grid-template-columns: auto 1.6rem 1fr auto; gap: 10px; align-items: start; padding: 10px 0; cursor: pointer; font-weight: 400; }
+.steps input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--speech); }
+.steps .n { font-family: var(--f-data); font-weight: 600; color: var(--speech); }
+.steps .t { display: flex; flex-direction: column; min-width: 0; }
+.steps .t b { font-weight: 700; font-size: .92rem; }
+.steps .t span { font-size: .8rem; color: var(--muted); }
+.steps .min { font-family: var(--f-data); font-size: .8rem; color: var(--muted); }
+.steps li.done .t b { color: var(--muted); text-decoration: line-through; }
+.steps li.next label { background: var(--speech-soft); border-radius: 8px; padding-inline: 8px; margin-inline: -8px; }
 .ab { font-family: var(--f-data); font-size: .85rem; color: var(--muted); }
 .ab b { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -232,6 +257,13 @@ audio { width: 100%; }
       <div class="panel">
         <ul class="menu" id="menu"></ul>
         <p class="status" id="menu-status" role="status"></p>
+        <details>
+          <summary>どの練習が何に効くか</summary>
+          <div class="map-wrap" style="margin-top:8px">
+            <table class="map" id="skillmap"></table>
+          </div>
+          <p class="hint" style="margin-top:8px">● 主に効く　○ 少し効く。シャドーイングと多聴は「耳と口の準備」、話す力そのものはタスク・サイクルと 4/3/2 と人と話すことで伸ばします。チャンク帳は、文を組み立てる手間を減らすので流暢さにも効きます。</p>
+        </details>
       </div>
     </section>
 
@@ -246,6 +278,7 @@ audio { width: 100%; }
 
   <!-- ================= MEASURE ================= -->
   <div class="view" id="v-measure" hidden>
+    <div class="skills-line">効く力 <span class="tag">正確さ</span><span class="tag">語彙・表現</span><span class="tag">流暢さ</span>　話して、言えなかった所だけを学ぶ（アウトプット仮説・タスク型学習）</div>
     <section>
       <h2><span class="step">STEP 1</span>お題を選ぶ</h2>
       <div class="panel">
@@ -319,6 +352,7 @@ audio { width: 100%; }
 
   <!-- ================= CHUNKS ================= -->
   <div class="view" id="v-chunks" hidden>
+    <div class="skills-line">効く力 <span class="tag">語彙・表現</span><span class="tag">正確さ</span><span class="tag">流暢さ</span>　丸ごと覚えたかたまりは、文を組み立てる手間を省く（定型表現・間隔反復）</div>
     <section>
       <h2><span class="step">REVIEW</span>今日の復習 <span class="hint" id="due-count"></span></h2>
       <div class="panel">
@@ -350,6 +384,7 @@ audio { width: 100%; }
 
   <!-- ================= TIMER ================= -->
   <div class="view" id="v-timer" hidden>
+    <div class="skills-line">効く力 <span class="tag">流暢さ</span><span class="tag">正確さ</span>　止まらずに速く話す力（Nation の流暢さ訓練）</div>
     <section>
       <h2><span class="step">4/3/2</span>同じ話を、短い時間でもう一度</h2>
       <div class="panel">
@@ -401,14 +436,19 @@ audio { width: 100%; }
       </div>
     </section>
     <section>
+      <h2><span class="step">GUIDE</span>今日の手順 <span class="hint" id="sh-prog"></span></h2>
+      <div class="panel">
+        <div class="skills-line">効く力 <span class="tag">聞き取り</span><span class="tag">発音・リズム</span><span class="tag">語彙・表現</span>　話す力そのものは「測る」と「4/3/2」で</div>
+        <ol class="steps" id="steps"></ol>
+        <div class="row"><button class="quiet" id="sh-reset">手順をリセット</button><p class="status" id="sh-status" role="status"></p></div>
+        <p class="hint">素材は 1〜2分、スクリプト付き、読めば8〜9割わかるもの。同じ素材を3〜5日続けると、意味を考える負担が減って音に集中できます。</p>
+      </div>
+    </section>
+    <section>
       <h2><span class="step">SCRIPT</span>スクリプト</h2>
       <div class="panel">
         <label for="s-script">音声の英文（字幕や書き起こしを貼る）</label>
         <textarea id="s-script" placeholder="英文を貼っておくと、ここを見ながら練習できます。"></textarea>
-        <details>
-          <summary>やり方の順番</summary>
-          <p class="hint">① スクリプトなしで聞く → ② スクリプトを読んで意味を確認 → ③ スクリプトを見ながら音に合わせて読む（オーバーラッピング）→ ④ スクリプトなしで 0.5 語ほど後ろを追う（シャドーイング）→ ⑤ 速度を 1.0× に戻す。日本語に訳さず、音・リズム・強弱をそのまま真似ます。素材は好きな映画、テック系の動画、ポッドキャストなど、自分が面白いと思えるものを。</p>
-        </details>
       </div>
     </section>
   </div>
@@ -447,16 +487,21 @@ audio { width: 100%; }
   let db = null, sample = null;
 
   // ================= TODAY =================
+  // skills: [listening, pronunciation, fluency, accuracy, vocab, interaction]  2 = main, 1 = some
+  const SKILLS = ["聞き取り", "発音・リズム", "流暢さ", "正確さ", "語彙・表現", "やりとり"];
   const MENU = [
-    { id: "shadow", ja: "シャドーイング", sub: "好きな音声を真似る", min: 30, link: "#shadow" },
-    { id: "task", ja: "タスク・サイクル", sub: "話す → 書き起こす → 添削 → 言い直す", min: 60, link: "#measure" },
-    { id: "fluency", ja: "4/3/2 トレーニング", sub: "同じ話を 4→3→2 分で", min: 30, link: "#timer" },
-    { id: "input", ja: "多聴・多読", sub: "映画・YouTube・記事を訳さずに", min: 60 },
-    { id: "chunks", ja: "チャンク帳の復習", sub: "言えなかった表現を思い出す", min: 30, link: "#chunks" },
-    { id: "talk", ja: "人と話す", sub: "オンライン英会話・言語交換・音声モード", min: 30 },
-    { id: "movie", ja: "映画・ドラマを1本", sub: "英語字幕で", min: 60, weekend: true },
-    { id: "interview", ja: "面接シミュレーション", sub: "Why Google・経験の説明", min: 60, weekend: true },
+    { id: "shadow", ja: "シャドーイング", sub: "耳と口の準備運動", min: 30, link: "#shadow", s: [2, 2, 1, 0, 1, 0] },
+    { id: "task", ja: "タスク・サイクル", sub: "話す → 書き起こす → 添削 → 言い直す", min: 60, link: "#measure", s: [0, 0, 1, 2, 2, 0] },
+    { id: "fluency", ja: "4/3/2 トレーニング", sub: "同じ話を 4→3→2 分で", min: 30, link: "#timer", s: [0, 0, 2, 1, 0, 0] },
+    { id: "input", ja: "多聴・多読", sub: "映画・YouTube・記事を訳さずに", min: 60, s: [2, 0, 0, 0, 2, 0] },
+    { id: "chunks", ja: "チャンク帳の復習", sub: "言えなかった表現を思い出す", min: 30, link: "#chunks", s: [0, 0, 2, 2, 2, 0] },
+    { id: "talk", ja: "人と話す", sub: "オンライン英会話・言語交換・音声モード", min: 30, s: [1, 0, 1, 0, 0, 2] },
+    { id: "movie", ja: "映画・ドラマを1本", sub: "英語字幕で", min: 60, weekend: true, s: [2, 1, 0, 0, 2, 0] },
+    { id: "interview", ja: "面接シミュレーション", sub: "Why Google・経験の説明", min: 60, weekend: true, s: [0, 0, 2, 1, 1, 2] },
   ];
+  const mainTags = (m) => m.s.map((v, i) => v === 2 ? `<span class="tag">${SKILLS[i]}</span>` : "").join("");
+  $("#skillmap").innerHTML = `<thead><tr><th>練習</th>${SKILLS.map((s) => `<th>${s}</th>`).join("")}</tr></thead><tbody>` +
+    MENU.map((m) => `<tr><td>${esc(m.ja)}</td>${m.s.map((v) => v === 2 ? `<td class="full" aria-label="主に効く">●</td>` : v === 1 ? `<td class="half" aria-label="少し効く">○</td>` : `<td class="none" aria-label="ほぼ効かない">·</td>`).join("")}</tr>`).join("") + "</tbody>";
   const START = new Date(2026, 10, 5), END = new Date(2026, 11, 31), GOAL_H = 260;
   const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const isWeekend = (d) => d.getDay() === 0 || d.getDay() === 6;
@@ -472,7 +517,7 @@ audio { width: 100%; }
     $("#menu").innerHTML = items.map((m) => `
       <li><label for="m-${m.id}">
         <input type="checkbox" id="m-${m.id}" data-id="${m.id}" ${day.items && day.items[m.id] ? "checked" : ""} ${db ? "" : "disabled"}>
-        <span class="t"><b>${esc(m.ja)}</b><span>${esc(m.sub)}</span></span>
+        <span class="t"><b>${esc(m.ja)}</b><span>${esc(m.sub)}</span><span class="tags">${mainTags(m)}</span></span>
         <span class="min">${m.min}分${m.link ? ` <a class="go" href="${m.link}">開く</a>` : ""}</span>
       </label></li>`).join("");
     const doneMin = items.reduce((s, m) => s + (day.items && day.items[m.id] ? m.min : 0), 0);
@@ -998,6 +1043,42 @@ ${current.transcript}
   $("#s-b").addEventListener("click", () => { const t = player.currentTime; if (A == null || t <= A) return; B = t; player.currentTime = A; renderAB(); });
   $("#s-clear").addEventListener("click", () => { A = B = null; renderAB(); });
   player.addEventListener("timeupdate", () => { if (A != null && B != null && player.currentTime >= B) player.currentTime = A; });
+  const STEPS = [
+    { t: "スクリプトなしで2回聞く", p: "どのくらい聞き取れたか、自分で確認する", min: 3 },
+    { t: "スクリプトを読んで意味を確認する", p: "知らない単語を調べる。日本語に訳しながら読まない", min: 5 },
+    { t: "スクリプトを見ながら1回聞く", p: "聞き取れなかった部分が、実際どう発音されていたかを確認する", min: 2 },
+    { t: "マンブリング", p: "小声でぶつぶつ追いかける。完璧でなくていいので、音の流れに慣れる", min: 3 },
+    { t: "オーバーラッピング", p: "スクリプトを見ながら音声と同時に読む。速さ・区切り・強弱をぴったり合わせる", min: 5 },
+    { t: "シャドーイング", p: "スクリプトを閉じて、少し遅れて追いかける。0.8× から始めて最後は 1.0×", min: 8 },
+    { t: "録音して聞き比べる", p: "言えなかった場所、崩れた場所に印をつける。その文を A〜B 区間でくり返す", min: 3 },
+    { t: "表現を2〜3個チャンク帳へ", p: "使えそうな言い回しを「話す力」につなげる", min: 1, link: "#chunks" },
+  ];
+  const stepKey = () => "fl-steps-" + ymd(new Date());
+  let stepsDone = (() => { try { return JSON.parse(load(stepKey()) || "[]"); } catch (e) { return []; } })();
+  function renderSteps() {
+    const next = STEPS.findIndex((_, i) => !stepsDone.includes(i));
+    $("#steps").innerHTML = STEPS.map((s, i) => `
+      <li class="${stepsDone.includes(i) ? "done" : ""} ${i === next ? "next" : ""}"><label for="st-${i}">
+        <input type="checkbox" id="st-${i}" data-i="${i}" ${stepsDone.includes(i) ? "checked" : ""}>
+        <span class="n">${"①②③④⑤⑥⑦⑧"[i]}</span>
+        <span class="t"><b>${esc(s.t)}</b><span>${esc(s.p)}</span></span>
+        <span class="min">${s.min}分${s.link ? ` <a class="go" href="${s.link}">開く</a>` : ""}</span>
+      </label></li>`).join("");
+    $("#sh-prog").textContent = `${stepsDone.length}/${STEPS.length}`;
+  }
+  $("#steps").addEventListener("change", (e) => {
+    const i = Number(e.target.dataset.i); if (isNaN(i)) return;
+    stepsDone = e.target.checked ? Array.from(new Set(stepsDone.concat(i))) : stepsDone.filter((x) => x !== i);
+    store(stepKey(), JSON.stringify(stepsDone)); renderSteps();
+    if (stepsDone.length === STEPS.length) {
+      const key = ymd(new Date());
+      if (db && !(days[key] && days[key].items && days[key].items.shadow)) setItem(new Date(), "shadow", true);
+      $("#sh-status").textContent = db ? "8ステップ完了。今日の「シャドーイング」にチェックを入れました。" : "8ステップ完了。";
+    } else $("#sh-status").textContent = "";
+  });
+  $("#sh-reset").addEventListener("click", () => { stepsDone = []; store(stepKey(), "[]"); renderSteps(); $("#sh-status").textContent = ""; });
+  renderSteps();
+
   const sc = load("fl-script"); if (sc) $("#s-script").value = sc;
   $("#s-script").addEventListener("input", (e) => store("fl-script", e.target.value));
 
