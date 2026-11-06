@@ -466,6 +466,7 @@ audio { width: 100%; }
       <h2><span class="step">ROUNDS</span>3ラウンドを比べる</h2>
       <div class="panel">
         <p class="hint">各ラウンドをボイスメモで録って、ここに入れてください。文字起こしも貼ると、速さ・ラン長・内容の維持まで出ます。マイクで直接録音しながら測るなら <a href="https://soma0223.github.io/E-English/recorder/" target="_blank" rel="noopener" style="color:var(--speech)">Recorder</a>（保存した音声をここに入れると Claude の比較も使えます）。</p>
+        <div class="row"><button class="quiet" id="mic-test">このページでマイクが使えるか試す</button><span class="hint" id="mic-res"></span></div>
         <div class="two" id="r-inputs"></div>
         <div class="map-wrap"><table class="map cmp" id="r-table"></table></div>
         <div class="notes" id="r-notes"></div>
@@ -1360,6 +1361,18 @@ ${body}`;
     db.collection("fluency432").orderBy("createdAt", "desc").limit(30).onSnapshot((snap) => renderR432History(snap.docs.map((x) => x.data()).filter(Boolean)), () => { $("#r-hist-empty").textContent = "記録を読み込めませんでした。"; });
   });
   rRender();
+  $("#mic-test").addEventListener("click", async () => {
+    const out = $("#mic-res");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { out.textContent = "結果：このページではマイクの機能自体がありません。"; return; }
+    out.textContent = "確認中…";
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach((t) => t.stop());
+      out.textContent = "結果：使えました。Claude に「マイク使えた」と伝えてください。ページ内で録音できるようにします。";
+    } catch (e) {
+      out.textContent = `結果：使えませんでした（${e && e.name ? e.name : "不明"}）。許可の画面が出ずにこう表示されたなら、claude.ai 側で止められています。Recorder を使ってください。`;
+    }
+  });
 
   // ================= SHADOW =================
   const player = $("#player"); let A = null, B = null, objUrl = null;
