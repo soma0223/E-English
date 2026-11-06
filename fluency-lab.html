@@ -50,13 +50,13 @@ h1 .dot { color: var(--speech); }
 
 nav.tabs {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: var(--bg); display: flex; gap: 4px; overflow-x: auto; padding-block: 8px;
+  background: var(--bg); display: flex; gap: 2px; overflow-x: auto; padding-block: 8px;
   border-bottom: 1px solid var(--line); scrollbar-width: none;
 }
 nav.tabs::-webkit-scrollbar { display: none; }
 nav.tabs a {
-  flex: 0 0 auto; text-decoration: none; color: var(--muted); font-weight: 700; font-size: .88rem;
-  padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+  flex: 0 0 auto; text-decoration: none; color: var(--muted); font-weight: 700; font-size: .8rem;
+  padding: 6px 8px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
 }
 nav.tabs a[aria-current="page"] { color: var(--speech); border-color: var(--speech); background: var(--speech-soft); }
 nav.tabs a .badge { font-family: var(--f-data); font-size: .7rem; margin-left: 4px; }
@@ -243,6 +243,16 @@ table.cmp .flat { color: var(--muted); }
 .sents li.hard button { border-color: var(--long); background: color-mix(in srgb, var(--long) 10%, var(--surface)); }
 .sents li .act { display: flex; gap: 6px; margin: 2px 0 6px 8px; }
 
+/* reading */
+.rd-head { display: flex; flex-direction: column; gap: 2px; }
+.rd-title { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 1.35rem; line-height: 1.3; text-wrap: balance; }
+.article { font-size: 1.02rem; line-height: 1.95; max-width: 65ch; overflow-wrap: anywhere; }
+.article p { margin: 0 0 1em; }
+.article.veil { filter: blur(6px); user-select: none; pointer-events: none; }
+.rd-q { margin: 8px 0 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 8px; font-size: .9rem; }
+.rd-q .a { color: var(--muted); font-size: .84rem; }
+#rd-comp button[aria-pressed="true"] { background: var(--speech); color: var(--surface); }
+
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -271,9 +281,10 @@ audio { width: 100%; }
   <nav class="tabs" aria-label="ページ">
     <a href="#today" data-v="today">今日</a>
     <a href="#measure" data-v="measure">測る</a>
-    <a href="#chunks" data-v="chunks">チャンク帳<span class="badge" id="due-badge"></span></a>
+    <a href="#chunks" data-v="chunks">チャンク<span class="badge" id="due-badge"></span></a>
     <a href="#timer" data-v="timer">4/3/2</a>
-    <a href="#shadow" data-v="shadow">シャドーイング</a>
+    <a href="#shadow" data-v="shadow">シャドー</a>
+    <a href="#read" data-v="read">多読</a>
   </nav>
 
   <!-- ================= TODAY ================= -->
@@ -578,6 +589,66 @@ audio { width: 100%; }
       </div>
     </section>
   </div>
+  <div class="view" id="v-read" hidden>
+    <div class="skills-line">効く力 <span class="tag">聞き取り・読む力</span><span class="tag">語彙・表現</span>　やさしい英語を、辞書なしで、たくさん（多読）</div>
+    <section>
+      <h2><span class="step">TODAY</span>今日の文章</h2>
+      <div class="panel">
+        <div class="two">
+          <div><label for="rd-level">レベル</label>
+            <select id="rd-level"><option value="A2+">A2+（かなりやさしい）</option><option value="B1" selected>B1（おすすめ）</option><option value="B1+">B1+</option><option value="B2">B2</option></select></div>
+          <div><label for="rd-genre">ジャンル</label><select id="rd-genre"></select></div>
+          <div><label for="rd-len">長さ</label>
+            <select id="rd-len"><option value="300">約300語（2〜3分）</option><option value="500" selected>約500語（4〜5分）</option><option value="800">約800語（6〜8分）</option></select></div>
+        </div>
+        <p class="hint" id="rd-reco"></p>
+        <div class="row"><button id="rd-gen">今日の文章を作る</button><p class="status" id="rd-status" role="status"></p></div>
+        <p class="hint">文章は Claude があなた向けに書いたオリジナルです。知らない単語が100語に2語以下になるよう、少しやさしめに作ります。</p>
+      </div>
+    </section>
+
+    <section id="rd-reader" hidden>
+      <div class="panel">
+        <div class="rd-head">
+          <h3 class="rd-title" id="rd-title"></h3>
+          <span class="hint" id="rd-meta"></span>
+        </div>
+        <div class="row">
+          <button id="rd-start">読み始める（時間を測る）</button>
+          <button class="ghost" id="rd-finish" hidden>読み終わった</button>
+          <button class="quiet" id="rd-show">測らずに読む</button>
+        </div>
+        <p class="hint" id="rd-rule">ルール：辞書は使わない。わからない単語は飛ばす。日本語に訳さず、話の流れを楽しむ。</p>
+        <article class="article veil" id="rd-text"></article>
+        <div id="rd-after" hidden>
+          <div class="notes" id="rd-speed"></div>
+          <p class="hint" style="margin-top:8px">どのくらいわかった？</p>
+          <div class="row" id="rd-comp">
+            <button class="ghost" data-c="3">ほぼ全部</button>
+            <button class="ghost" data-c="2">だいたい</button>
+            <button class="ghost" data-c="1">半分以下</button>
+          </div>
+          <p class="hint" id="rd-comp-msg"></p>
+          <details>
+            <summary>内容チェック（答えは開くと見えます）</summary>
+            <ol class="rd-q" id="rd-q"></ol>
+          </details>
+          <div class="examples" style="margin-top:10px">
+            <span class="kind">この文章の使える表現</span>
+            <ul class="clist" id="rd-chunks"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="step">LOG</span>読んだ記録</h2>
+      <div class="panel">
+        <ul class="hist" id="rd-hist"></ul>
+        <p class="empty" id="rd-hist-empty">まだ記録はありません。</p>
+      </div>
+    </section>
+  </div>
 </div>
 
 <script>
@@ -591,7 +662,7 @@ audio { width: 100%; }
   const use = (n) => (window.claude && window.claude.use) ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
 
   // ================= routing =================
-  const VIEWS = ["today", "measure", "chunks", "timer", "shadow"];
+  const VIEWS = ["today", "measure", "chunks", "timer", "shadow", "read"];
   function route() {
     const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "today";
     VIEWS.forEach((n) => { $("#v-" + n).hidden = n !== v; });
@@ -1606,6 +1677,143 @@ ${body}`;
     }, () => { $("#m-status").textContent = "素材を読み込めませんでした。"; });
   });
   renderMats();
+
+  // ================= READ (extensive reading with generated graded texts) =================
+  const GENRES = [
+    { id: "tech", ja: "テック・ビジネス", hint: "a story or explainer about technology companies, products, or startups" },
+    { id: "econ", ja: "経済・お金の話", hint: "an easy explainer about an economics idea, shown through a concrete everyday example" },
+    { id: "serial", ja: "連載ストーリー（毎日続く）", hint: "the next episode of an ongoing story about a Japanese university student who wants to work at a global tech company" },
+    { id: "mystery", ja: "ミステリー短編", hint: "a complete short mystery story with a clear ending" },
+    { id: "people", ja: "人物・キャリア", hint: "a story about how a person built their career, with real-feeling details (a fictional person)" },
+    { id: "science", ja: "科学・心理学", hint: "an easy explainer about a finding in psychology or science and what it means for daily life" },
+  ];
+  GENRES.forEach((g) => { const o = document.createElement("option"); o.value = g.id; o.textContent = g.ja; $("#rd-genre").appendChild(o); });
+  { const g = load("fl-rd-genre"); if (g && GENRES.some((x) => x.id === g)) $("#rd-genre").value = g;
+    const l = load("fl-rd-len"); if (l) $("#rd-len").value = l; }
+  $("#rd-genre").addEventListener("change", () => store("fl-rd-genre", $("#rd-genre").value));
+  $("#rd-len").addEventListener("change", () => store("fl-rd-len", $("#rd-len").value));
+  const LEVELS = ["A2+", "B1", "B1+", "B2"];
+  let readings = [], readingsLoaded = false, cur = null, readStart = 0, readTick = 0;
+  const wordCount = (t) => (t.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || []).length;
+
+  function recommendLevel() {
+    const done = readings.filter((r) => r.comprehension).slice(0, 3);
+    if (!done.length) return null;
+    const last = done[0], i = Math.max(0, LEVELS.indexOf(last.level));
+    if (last.comprehension === 1) return { lv: LEVELS[Math.max(0, i - 1)], why: "前回は「半分以下」だったので、1段やさしくするのがおすすめです。多読は楽に読めることが一番大事です。" };
+    if (last.comprehension === 3 && (last.wpm || 0) >= 150 && done.length >= 2 && done[1].comprehension === 3) return { lv: LEVELS[Math.min(LEVELS.length - 1, i + 1)], why: "2回続けて「ほぼ全部」で、速さも十分なので、1段上げてみましょう。" };
+    return { lv: last.level, why: "前回と同じレベルがちょうどよさそうです。" };
+  }
+  function renderReco() {
+    const r = recommendLevel();
+    $("#rd-reco").textContent = r ? `おすすめのレベル：${r.lv}。${r.why}` : "最初は B1 から。読んだあとの理解度に合わせて、次のレベルをおすすめします。";
+    if (r && load("fl-rd-level-manual") !== ymd(new Date())) $("#rd-level").value = r.lv;
+  }
+  $("#rd-level").addEventListener("change", () => store("fl-rd-level-manual", ymd(new Date())));
+
+  function renderReader() {
+    $("#rd-reader").hidden = !cur;
+    if (!cur) return;
+    $("#rd-title").textContent = cur.title;
+    const g = GENRES.find((x) => x.id === cur.genre);
+    $("#rd-meta").textContent = `${cur.words}語 · ${cur.level} · ${g ? g.ja : ""} · ${cur.date}`;
+    $("#rd-text").innerHTML = String(cur.text).split(/\n{2,}|\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join("");
+    const finished = !!cur.seconds;
+    $("#rd-text").classList.toggle("veil", !finished && !readStart && !cur._shown);
+    $("#rd-start").hidden = finished || !!readStart; $("#rd-show").hidden = finished || !!readStart || !!cur._shown;
+    $("#rd-finish").hidden = !readStart;
+    $("#rd-rule").hidden = finished;
+    $("#rd-after").hidden = !(finished || cur._shown);
+    if (cur.wpm) {
+      const w = cur.wpm;
+      const band = w >= 450 ? "速すぎるので、流し読みになっていないか確認を。測り直すときは「読み始める」から。" : w >= 200 ? "かなり速い。ネイティブの大人（約250語/分）に近づいています。" : w >= 150 ? "多読として良いペースです。" : w >= 100 ? "B1 の多読として標準的。日本語に訳さずに読むと、もっと上がります。" : "ゆっくりめ。精読（1語ずつ訳す読み方）になっていないか確認を。多読では、わからない所は飛ばしてOK。";
+      $("#rd-speed").innerHTML = `<div>読む速さ：<b>${Math.round(w)} 語/分</b>（${Math.round(cur.seconds)}秒）。${esc(band)}</div>`;
+    } else $("#rd-speed").innerHTML = cur._shown ? `<div>時間は測っていません。</div>` : "";
+    document.querySelectorAll("#rd-comp button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.c) === cur.comprehension)));
+    $("#rd-comp-msg").textContent = cur.comprehension === 1 ? "次は1段やさしいレベルで。楽に読める量を増やすのが多読の近道です。" : cur.comprehension === 3 ? "いい感じです。続けて「ほぼ全部」なら、レベルを上げましょう。" : cur.comprehension === 2 ? "ちょうどいい難しさです。" : "";
+    $("#rd-q").innerHTML = (cur.questions || []).map((q) => `<li>${esc(q.q)}<div class="a">${esc(q.a || "")}</div></li>`).join("");
+    $("#rd-chunks").innerHTML = (cur.chunks || []).map((c, i) => `<li><div><div class="en">${esc(c.en)}</div><div class="ja">${esc(c.ja)}</div></div><div class="due"><button class="quiet" data-rc="${i}" ${db ? "" : "disabled"}>${(cur.added || []).includes(i) ? "追加済み" : "チャンク帳へ"}</button></div></li>`).join("");
+  }
+  function renderReadHist() {
+    $("#rd-hist-empty").hidden = readings.length > 0;
+    $("#rd-hist").innerHTML = readings.slice(0, 30).map((r) => `<li data-rid="${esc(r.id)}" style="cursor:pointer"><span>${esc(r.title)}</span><span class="nums">${r.wpm ? Math.round(r.wpm) + " 語/分" : "—"}<br>${["", "半分以下", "だいたい", "ほぼ全部"][r.comprehension || 0] || "未回答"}</span><span class="when">${esc(r.date)} · ${r.level} · ${r.words}語</span></li>`).join("");
+    const total = readings.reduce((s, r) => s + (r.seconds ? r.words : 0), 0);
+    if (readings.length) $("#rd-hist-empty").hidden = true;
+    $("#rd-hist").insertAdjacentHTML("afterbegin", readings.length ? `<li><span class="hint">これまでに読んだ量</span><span class="nums">${total.toLocaleString()} 語</span></li>` : "");
+  }
+  $("#rd-hist").addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-rid]"); if (!li) return;
+    cur = readings.find((r) => r.id === li.dataset.rid) || null; readStart = 0; renderReader();
+    $("#rd-reader").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  $("#rd-gen").addEventListener("click", async () => {
+    if (!sample) { $("#rd-status").textContent = "この表示では Claude に文章を作ってもらえません。"; return; }
+    const level = $("#rd-level").value, genre = GENRES.find((g) => g.id === $("#rd-genre").value), len = Number($("#rd-len").value);
+    let prev = "";
+    if (genre.id === "serial") { const last = readings.find((r) => r.genre === "serial" && r.summary); if (last) prev = `\nStory so far (continue from here, keep the same characters): ${last.summary}`; }
+    const recent = readings.slice(0, 5).map((r) => r.title).join(" / ");
+    const prompt = `Write an ORIGINAL graded reader text for extensive reading. Do not copy or imitate any existing book, article or character.
+Reader: a Japanese university student (economics major) at CEFR ${level}, aiming to work at Google. They read for pleasure without a dictionary.
+Language: CEFR ${level}. At least 98% of the words must be ones a ${level} learner already knows; use common phrasal verbs and natural chunks; short to medium sentences; no rare idioms. Make it genuinely interesting, with concrete details and a little tension or surprise.
+Content: ${genre.hint}.${prev}
+Length: about ${len} words, in short paragraphs.
+Avoid repeating these recent titles: ${recent || "none"}.
+Return JSON only, with this shape:
+{"title": string, "text": string (paragraphs separated by blank lines), "questions": [{"q": string (an English question about the main idea), "a": string (a short model answer in Japanese)}] (exactly 2), "chunks": [{"en": string (a useful chunk exactly as it appears in the text), "ja": string (Japanese meaning and when to use it)}] (exactly 5), "summary": string (2-3 English sentences summarizing the story so far, for continuing a serial)}`;
+    $("#rd-gen").disabled = true; $("#rd-status").textContent = "Claude が文章を書いています…（30秒ほど）";
+    try {
+      const v = await sample.json(prompt, { cache: false });
+      if (!v || typeof v.title !== "string" || typeof v.text !== "string" || v.text.length < 200) throw new Error("bad");
+      const doc = {
+        date: ymd(new Date()), createdAt: Date.now(), level, genre: genre.id, title: v.title.slice(0, 200), text: v.text.slice(0, 12000),
+        words: wordCount(v.text),
+        questions: (Array.isArray(v.questions) ? v.questions : []).slice(0, 3).map((q) => ({ q: String(q.q || "").slice(0, 300), a: String(q.a || "").slice(0, 300) })),
+        chunks: (Array.isArray(v.chunks) ? v.chunks : []).slice(0, 6).map((c) => ({ en: String(c.en || "").slice(0, 200), ja: String(c.ja || "").slice(0, 200) })).filter((c) => c.en),
+        summary: String(v.summary || "").slice(0, 1000), added: [],
+      };
+      readStart = 0;
+      if (db) { const ref = await db.collection("reading").add(doc); cur = Object.assign({ id: ref.id }, doc); }
+      else cur = Object.assign({ id: "local" }, doc);
+      $("#rd-status").textContent = ""; renderReader();
+      $("#rd-reader").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      $("#rd-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってからもう一度。" : "文章を作れませんでした。もう一度押してください。";
+    } finally { $("#rd-gen").disabled = false; }
+  });
+  function curUpdate(data) {
+    Object.assign(cur, data);
+    if (db && cur.id !== "local") db.doc("reading/" + cur.id).update(data).catch(() => { $("#rd-status").textContent = "記録を保存できませんでした。"; });
+  }
+  $("#rd-start").addEventListener("click", () => { readStart = Date.now(); renderReader(); });
+  $("#rd-show").addEventListener("click", () => { cur._shown = true; renderReader(); });
+  $("#rd-finish").addEventListener("click", () => {
+    const sec = (Date.now() - readStart) / 1000; readStart = 0;
+    curUpdate({ seconds: Math.round(sec), wpm: Math.round(cur.words / (sec / 60)), finishedAt: Date.now() });
+    renderReader(); renderReadHist();
+  });
+  $("#rd-comp").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-c]"); if (!b || !cur) return;
+    curUpdate({ comprehension: Number(b.dataset.c) }); renderReader(); renderReadHist();
+  });
+  $("#rd-chunks").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-rc]"); if (!b || !db || !cur) return;
+    const i = Number(b.dataset.rc), c = (cur.chunks || [])[i]; if (!c || (cur.added || []).includes(i)) return;
+    b.disabled = true;
+    try { await addChunk(c.en, c.ja, `多読「${cur.title}」から`, "素材から"); curUpdate({ added: (cur.added || []).concat(i) }); renderReader(); }
+    catch (err) { b.disabled = false; }
+  });
+  dbReady.push(() => {
+    db.collection("reading").orderBy("createdAt", "desc").limit(60).onSnapshot((snap) => {
+      const keep = cur && cur._shown;
+      readings = snap.docs.map((x) => Object.assign({ id: x.id }, JSON.parse(JSON.stringify(x.data() || {}))));
+      readingsLoaded = true;
+      if (!cur) { const today = readings.find((r) => r.date === ymd(new Date())); if (today) cur = today; }
+      else { const fresh = readings.find((r) => r.id === cur.id); if (fresh) { cur = Object.assign(fresh, keep ? { _shown: true } : {}); } }
+      renderReco(); renderReader(); renderReadHist();
+    }, () => { $("#rd-hist-empty").textContent = "記録を読み込めませんでした。"; });
+  });
+  renderReco(); renderReadHist();
 
   // ================= capabilities =================
   use("sample").then((s) => {
