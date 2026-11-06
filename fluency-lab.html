@@ -254,6 +254,13 @@ table.cmp .flat { color: var(--muted); }
 .article mark { background: color-mix(in srgb, var(--pause) 25%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
 #rd-comp button[aria-pressed="true"] { background: var(--speech); color: var(--surface); }
 
+.plan { display: flex; flex-direction: column; gap: 6px; }
+.plan textarea { min-height: 96px; font-family: var(--f-body); font-size: .92rem; }
+.plan-tpl { gap: 6px; }
+.plan-view { margin: 0; padding: 10px 12px 10px 2em; border: 1.5px dashed var(--speech); border-radius: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 1.05rem; font-weight: 700; }
+.plan-view li { overflow-wrap: anywhere; }
+.peek { font-size: .88rem; }
+.peek p { margin: 6px 0 0; font-family: var(--f-data); font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -469,8 +476,15 @@ audio { width: 100%; }
         <label for="t-topic">お題</label>
         <select id="t-topic"></select>
         <p class="topic-en" id="t-topic-en"></p>
+        <div class="plan">
+          <label for="plan-text">話の骨組み（キーワードだけ。文は書かない）</label>
+          <div class="row plan-tpl"><span class="hint">型を入れる：</span><button class="quiet" data-tpl="ppf">過去→現在→未来</button><button class="quiet" data-tpl="star">STAR</button><button class="quiet" data-tpl="prep">結論→理由→例</button></div>
+          <textarea id="plan-text" placeholder="例&#10;慶應・経済&#10;Google＝自分で考えて改善できる&#10;ゼミで資料の作り方を変えた&#10;Google で〇〇したい"></textarea>
+          <div class="row"><button class="ghost" id="plan-timer">1分で考える</button><span class="hint" id="plan-left">文を書くと読み上げになるので、1行1〜3語で。</span></div>
+        </div>
         <div class="rounds" id="rounds"></div>
         <div class="clock" id="clock" aria-live="off">4:00</div>
+        <ol class="plan-view" id="plan-view" hidden></ol>
         <div class="track"><span id="t-track"></span></div>
         <p class="status" id="t-status" role="status" style="text-align:center">ラウンド1：4分で話します。準備ができたら開始。</p>
         <div class="row center">
@@ -1342,6 +1356,30 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
   $("#t-next").addEventListener("click", () => { tRound = Math.min(2, tRound + 1); tLeft = ROUNDS[tRound]; $("#t-status").textContent = `ラウンド${tRound + 1}：${ROUNDS[tRound] / 60}分。準備ができたら開始。`; renderTimer(); });
   $("#t-reset").addEventListener("click", () => { tRunning = false; cancelAnimationFrame(tRaf); releaseWake(); tRound = 0; tLeft = ROUNDS[0]; tFinished = [false, false, false]; $("#t-status").textContent = "ラウンド1：4分で話します。準備ができたら開始。"; renderTimer(); });
   renderTimer();
+
+  // ---------- planning notes (pre-task planning) ----------
+  const TPL = { ppf: "過去：\n現在：\n未来：", star: "S 状況：\nT 課題：\nA 行動：\nR 結果：", prep: "結論：\n理由：\n例：\nもう一度結論：" };
+  const planKey = () => "fl-plan-" + (tSel.value);
+  function renderPlanView() {
+    const lines = $("#plan-text").value.split("\n").map((x) => x.trim()).filter(Boolean);
+    $("#plan-view").hidden = !lines.length;
+    $("#plan-view").innerHTML = lines.map((x) => `<li>${esc(x)}</li>`).join("");
+  }
+  function loadPlan() { $("#plan-text").value = load(planKey()) || ""; renderPlanView(); }
+  $("#plan-text").addEventListener("input", () => { store(planKey(), $("#plan-text").value); renderPlanView(); });
+  document.querySelector(".plan-tpl").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-tpl]"); if (!b) return;
+    const ta = $("#plan-text"), t = TPL[b.dataset.tpl];
+    ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n" + t : t;
+    store(planKey(), ta.value); renderPlanView(); ta.focus();
+  });
+  let planT = 0;
+  $("#plan-timer").addEventListener("click", () => {
+    clearInterval(planT); let n = 60; $("#plan-left").textContent = "残り 60 秒"; $("#plan-text").focus();
+    planT = setInterval(() => { n--; $("#plan-left").textContent = n > 0 ? `残り ${n} 秒` : "準備おわり。話し始めましょう。"; if (n <= 0) { clearInterval(planT); beep(); } }, 1000);
+  });
+  loadPlan();
+  tSel.addEventListener("change", loadPlan);
 
   // ---------- 4/3/2: compare the three rounds ----------
   const RN = [0, 1, 2].map(() => ({ audio: null, text: "", r: null, file: "" }));
