@@ -168,6 +168,7 @@ details p { margin: 8px 0 0; }
 .grades button small { font-family: var(--f-data); font-weight: 400; font-size: .7rem; opacity: .85; }
 .grades .g0 { background: transparent; color: var(--long); border-color: var(--long); }
 .grades .g1 { background: transparent; color: var(--pause); border-color: var(--pause); }
+.cprog { display: flex; flex-direction: column; gap: 6px; }
 .card .cloze { font-family: var(--f-data); font-size: 1.05rem; letter-spacing: .02em; overflow-wrap: anywhere; }
 .card .kind { font-size: .72rem; color: var(--muted); letter-spacing: .04em; }
 .card .say { display: flex; gap: 8px; align-items: flex-start; }
@@ -402,6 +403,16 @@ audio { width: 100%; }
             <option value="ja">日本語 → 英語</option>
             <option value="cloze">頭文字ヒント</option>
           </select>
+        </div>
+        <div class="row">
+          <label for="c-cap" class="hint">1日の新規の上限</label>
+          <select id="c-cap" style="width:auto">
+            <option value="5">5個</option><option value="10">10個</option><option value="15" selected>15個（おすすめ）</option><option value="20">20個</option><option value="30">30個</option>
+          </select>
+        </div>
+        <div class="cprog">
+          <div class="bar" aria-hidden="true"><span id="cp-bar" style="width:0%"></span></div>
+          <p class="hint" id="cp-text"></p>
         </div>
         <div class="card" id="card"></div>
         <div class="stats" id="c-stats"></div>
@@ -1017,7 +1028,20 @@ ${current.transcript}
   let chunks = [];               // [{id, en, ja, note, interval, ease, due, reps, lapses}]
   let chunksLoaded = false, revealed = false, cardId = null;
   const DAY = 86400000;
-  const dueList = () => chunks.filter((c) => (c.due || 0) <= Date.now()).sort((a, b) => (a.due || 0) - (b.due || 0));
+  const SEC_PER_CARD = 20, TARGET_MIN = 30, TARGET_CARDS = Math.round(TARGET_MIN * 60 / SEC_PER_CARD);
+  const capOf = () => { const v = Number(load("fl-cap")); return [5, 10, 15, 20, 30].includes(v) ? v : 15; };
+  const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const revKey = () => "fl-crev-" + ymd(new Date());
+  const reviewedToday = () => Number(load(revKey()) || 0);
+  function queueParts() {
+    const now = Date.now(), t0 = dayStart();
+    const reviews = chunks.filter((c) => (c.reps || 0) > 0 && (c.due || 0) <= now).sort((a, b) => (a.due || 0) - (b.due || 0));
+    const introduced = chunks.filter((c) => (c.firstReviewed || 0) >= t0).length;
+    const allNew = chunks.filter((c) => !((c.reps || 0) > 0)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const room = Math.max(0, capOf() - introduced);
+    return { reviews, fresh: allNew.slice(0, room), backlog: Math.max(0, allNew.length - room), introduced };
+  }
+  const dueList = () => { const q = queueParts(); return q.reviews.concat(q.fresh); };
 
   function schedule(c, g) {
     let iv = c.interval || 0, ef = c.ease || 2.5, due, lapses = c.lapses || 0;
@@ -1028,7 +1052,7 @@ ${current.transcript}
       if (g === 3) { ef = ef + 0.15; iv = !iv ? 3 : Math.max(4, iv * ef * 1.3); }
       iv = Math.round(iv * 10) / 10; due = Date.now() + iv * DAY;
     }
-    return { interval: iv, ease: Math.round(ef * 100) / 100, due, reps: (c.reps || 0) + 1, lapses, lastReviewed: Date.now() };
+    return { interval: iv, ease: Math.round(ef * 100) / 100, due, reps: (c.reps || 0) + 1, lapses, lastReviewed: Date.now(), firstReviewed: c.firstReviewed || Date.now() };
   }
   const ivLabel = (s) => s.interval === 0 ? "10分" : s.interval < 1 ? `${Math.round(s.interval * 24)}時間` : s.interval < 30 ? `${Math.round(s.interval)}日` : `${Math.round(s.interval / 30)}か月`;
 
@@ -1066,14 +1090,31 @@ ${current.transcript}
   }
   const speakBtn = (text) => canSpeak ? `<button class="speak" data-speak="${esc(text)}" aria-label="読み上げ">▶ 音声</button>` : "";
 
+  function renderProgress() {
+    if (!db || !chunksLoaded) { $("#cp-text").textContent = ""; $("#cp-bar").style.width = "0%"; return; }
+    const q = queueParts(), done = reviewedToday(), left = q.reviews.length + q.fresh.length;
+    const goal = Math.max(1, Math.min(TARGET_CARDS, done + left));
+    $("#cp-bar").style.width = Math.min(100, done / goal * 100) + "%";
+    const min = Math.round(done * SEC_PER_CARD / 60);
+    let t = `今日 ${done}枚（約${min}分）。残り：復習 ${q.reviews.length}枚・新規 ${q.fresh.length}枚（今日の新規 ${q.introduced}/${capOf()}）`;
+    if (q.backlog) t += `・控えの新規 ${q.backlog}枚`;
+    if (!left) t += done + q.backlog === 0 ? "" : (done < TARGET_CARDS && q.backlog === 0 ? `。30分（約${TARGET_CARDS}枚）に届かない日は、添削や素材から新しい表現を足すタイミングです。` : "。今日の分は終わりです。");
+    else if (done + left > TARGET_CARDS) t += `。30分（約${TARGET_CARDS}枚）を超えそうなので、新規の上限を下げるか、新しく足すのを1〜2日控えましょう。`;
+    if (q.backlog > capOf() * 4) t += `　控えが ${Math.ceil(q.backlog / capOf())} 日分たまっています。追加は控えめに。`;
+    $("#cp-text").textContent = t;
+  }
+  $("#c-cap").addEventListener("change", () => { store("fl-cap", $("#c-cap").value); cardId = null; revealed = false; renderCard(); });
+  $("#c-cap").value = String(capOf());
+
   function renderStats() {
+    renderProgress();
     const now = Date.now(), start = new Date(); start.setHours(0, 0, 0, 0);
     const mastered = chunks.filter((c) => (c.interval || 0) >= 21).length;
-    const today = chunks.filter((c) => (c.lastReviewed || 0) >= start.getTime()).length;
+    const today = reviewedToday();
     $("#c-stats").innerHTML = !chunksLoaded || !chunks.length ? "" : `
-      <div class="stat"><span class="k">今日復習した</span><span class="v">${today}<small>件</small></span></div>
+      <div class="stat"><span class="k">今日答えた</span><span class="v">${today}<small>枚</small></span></div>
       <div class="stat"><span class="k">定着（3週間以上空けて言えた）</span><span class="v">${mastered}<small>/${chunks.length}</small></span></div>
-      <div class="stat"><span class="k">復習待ち</span><span class="v">${chunks.filter((c) => (c.due || 0) <= now).length}<small>件</small></span></div>`;
+      <div class="stat"><span class="k">登録の合計</span><span class="v">${chunks.length}<small>件</small></span></div>`;
   }
 
   function renderCard() {
@@ -1085,7 +1126,9 @@ ${current.transcript}
     if (!chunksLoaded) { box.innerHTML = `<p class="empty">チャンク帳を読み込んでいます…</p>`; return; }
     if (!chunks.length) { box.innerHTML = `<p class="empty">まだ表現がありません。下の「表現を追加」か、「測る」の添削から追加してください。</p>`; return; }
     if (!due.length) {
-      const next = chunks.slice().sort((a, b) => a.due - b.due)[0];
+      const q = queueParts();
+      if (q.backlog) { box.innerHTML = `<p class="empty">今日の分は終わりです。新規は上限（${capOf()}個）に達したので、残りの ${q.backlog} 個は明日以降に出ます。</p>`; return; }
+      const next = chunks.filter((c) => (c.reps || 0) > 0).sort((a, b) => a.due - b.due)[0] || chunks[0];
       const when = new Date(next.due);
       box.innerHTML = `<p class="empty">今日の復習は終わりです。次は ${when.getMonth() + 1}/${when.getDate()} ${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")} ごろ。</p>`;
       return;
@@ -1132,6 +1175,7 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     const c = chunks.find((x) => x.id === cardId); if (!c) return;
     const upd = schedule(c, Number(b.dataset.g));
     Object.assign(c, upd); revealed = false; cardId = null;
+    store(revKey(), String(reviewedToday() + 1));
     renderCard();
     if (!dueList().length) { const key = ymd(new Date()); if (!(days[key] && days[key].items && days[key].items.chunks)) setItem(new Date(), "chunks", true); }
     try { await db.doc("chunks/" + c.id).update(upd); } catch (err) { $("#c-status").textContent = "復習結果を保存できませんでした。"; }
