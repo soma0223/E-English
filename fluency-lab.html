@@ -251,6 +251,7 @@ table.cmp .flat { color: var(--muted); }
 .article.veil { filter: blur(6px); user-select: none; pointer-events: none; }
 .rd-q { margin: 8px 0 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 8px; font-size: .9rem; }
 .rd-q .a { color: var(--muted); font-size: .84rem; }
+.article mark { background: color-mix(in srgb, var(--pause) 25%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
 #rd-comp button[aria-pressed="true"] { background: var(--speech); color: var(--surface); }
 
 /* shadow */
@@ -601,8 +602,19 @@ audio { width: 100%; }
           <div><label for="rd-len">長さ</label>
             <select id="rd-len"><option value="300">約300語（2〜3分）</option><option value="500" selected>約500語（4〜5分）</option><option value="800">約800語（6〜8分）</option></select></div>
         </div>
+        <label class="hint"><input type="checkbox" id="rd-recycle" checked> チャンク帳の表現（特に忘れやすいもの）を文章に入れる</label>
         <p class="hint" id="rd-reco"></p>
         <div class="row"><button id="rd-gen">今日の文章を作る</button><p class="status" id="rd-status" role="status"></p></div>
+        <details id="rd-paste-box">
+          <summary>自分で見つけた文章を貼って読む</summary>
+          <p class="hint" style="margin-top:8px">Simple English Wikipedia や VOA Learning English など、著作権の心配がない文章を貼れます。時間の計測と、内容チェック・使える表現の作成が使えます。</p>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+            <label for="rd-p-title">タイトル</label><input type="text" id="rd-p-title" placeholder="例：Simple Wikipedia - Google">
+            <label for="rd-p-src">出どころ（URL など）</label><input type="text" id="rd-p-src" placeholder="https://simple.wikipedia.org/wiki/Google">
+            <label for="rd-p-text">本文</label><textarea id="rd-p-text" placeholder="英文を貼る"></textarea>
+            <div class="row"><button class="ghost" id="rd-p-go">この文章を読む</button></div>
+          </div>
+        </details>
         <p class="hint">文章は Claude があなた向けに書いたオリジナルです。知らない単語が100語に2語以下になるよう、少しやさしめに作ります。</p>
       </div>
     </section>
@@ -612,6 +624,7 @@ audio { width: 100%; }
         <div class="rd-head">
           <h3 class="rd-title" id="rd-title"></h3>
           <span class="hint" id="rd-meta"></span>
+          <span class="hint" id="rd-used"></span>
         </div>
         <div class="row">
           <button id="rd-start">読み始める（時間を測る）</button>
@@ -1716,8 +1729,11 @@ ${body}`;
     if (!cur) return;
     $("#rd-title").textContent = cur.title;
     const g = GENRES.find((x) => x.id === cur.genre);
-    $("#rd-meta").textContent = `${cur.words}語 · ${cur.level} · ${g ? g.ja : ""} · ${cur.date}`;
-    $("#rd-text").innerHTML = String(cur.text).split(/\n{2,}|\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join("");
+    $("#rd-meta").textContent = `${cur.words}語 · ${cur.level || "貼った文章"} · ${g ? g.ja : cur.genre === "pasted" ? "自分で選んだ文章" : ""} · ${cur.date}`;
+    const used = (cur.used || []).filter(Boolean);
+    const hl = (html) => used.reduce((h, u) => { const e = esc(u).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); return e.length > 2 ? h.replace(new RegExp(e, "i"), (m) => `<mark>${m}</mark>`) : h; }, html);
+    $("#rd-text").innerHTML = String(cur.text).split(/\n{2,}|\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${hl(esc(p))}</p>`).join("");
+    $("#rd-used").textContent = used.length ? `チャンク帳から入れた表現（黄色）：${used.join(" / ")}` : cur.source ? `出典：${cur.source}` : "";
     const finished = !!cur.seconds;
     $("#rd-text").classList.toggle("veil", !finished && !readStart && !cur._shown);
     $("#rd-start").hidden = finished || !!readStart; $("#rd-show").hidden = finished || !!readStart || !!cur._shown;
@@ -1753,14 +1769,18 @@ ${body}`;
     let prev = "";
     if (genre.id === "serial") { const last = readings.find((r) => r.genre === "serial" && r.summary); if (last) prev = `\nStory so far (continue from here, keep the same characters): ${last.summary}`; }
     const recent = readings.slice(0, 5).map((r) => r.title).join(" / ");
+    const targets = !$("#rd-recycle").checked ? [] : chunks.slice()
+      .sort((a, b) => ((b.lapses || 0) - (a.lapses || 0)) || ((a.reps || 0) - (b.reps || 0)) || ((b.createdAt || 0) - (a.createdAt || 0)))
+      .slice(0, 6).map((c) => c.en.replace(/\s*\.\.\.|…/g, "").trim()).filter((x) => x.length > 2 && x.length < 90);
+    const recycle = targets.length ? `\nThe reader is practising these expressions. Use each one naturally at least once where it fits the story (exact wording, or with small grammatical changes): ${targets.map((t) => `"${t}"`).join(", ")}. List the exact strings you used in "used".` : "";
     const prompt = `Write an ORIGINAL graded reader text for extensive reading. Do not copy or imitate any existing book, article or character.
 Reader: a Japanese university student (economics major) at CEFR ${level}, aiming to work at Google. They read for pleasure without a dictionary.
 Language: CEFR ${level}. At least 98% of the words must be ones a ${level} learner already knows; use common phrasal verbs and natural chunks; short to medium sentences; no rare idioms. Make it genuinely interesting, with concrete details and a little tension or surprise.
-Content: ${genre.hint}.${prev}
+Content: ${genre.hint}.${prev}${recycle}
 Length: about ${len} words, in short paragraphs.
 Avoid repeating these recent titles: ${recent || "none"}.
 Return JSON only, with this shape:
-{"title": string, "text": string (paragraphs separated by blank lines), "questions": [{"q": string (an English question about the main idea), "a": string (a short model answer in Japanese)}] (exactly 2), "chunks": [{"en": string (a useful chunk exactly as it appears in the text), "ja": string (Japanese meaning and when to use it)}] (exactly 5), "summary": string (2-3 English sentences summarizing the story so far, for continuing a serial)}`;
+{"title": string, "text": string (paragraphs separated by blank lines), "questions": [{"q": string (an English question about the main idea), "a": string (a short model answer in Japanese)}] (exactly 2), "chunks": [{"en": string (a useful chunk exactly as it appears in the text), "ja": string (Japanese meaning and when to use it)}] (exactly 5), "summary": string (2-3 English sentences summarizing the story so far, for continuing a serial), "used": [string] (the practised expressions exactly as they appear in the text; empty if none)}`;
     $("#rd-gen").disabled = true; $("#rd-status").textContent = "Claude が文章を書いています…（30秒ほど）";
     try {
       const v = await sample.json(prompt, { cache: false });
@@ -1771,6 +1791,7 @@ Return JSON only, with this shape:
         questions: (Array.isArray(v.questions) ? v.questions : []).slice(0, 3).map((q) => ({ q: String(q.q || "").slice(0, 300), a: String(q.a || "").slice(0, 300) })),
         chunks: (Array.isArray(v.chunks) ? v.chunks : []).slice(0, 6).map((c) => ({ en: String(c.en || "").slice(0, 200), ja: String(c.ja || "").slice(0, 200) })).filter((c) => c.en),
         summary: String(v.summary || "").slice(0, 1000), added: [],
+        used: (Array.isArray(v.used) ? v.used : []).map((u) => String(u).slice(0, 120)).filter((u) => u && v.text.toLowerCase().includes(u.toLowerCase())).slice(0, 8),
       };
       readStart = 0;
       if (db) { const ref = await db.collection("reading").add(doc); cur = Object.assign({ id: ref.id }, doc); }
@@ -1780,6 +1801,25 @@ Return JSON only, with this shape:
     } catch (e) {
       $("#rd-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってからもう一度。" : "文章を作れませんでした。もう一度押してください。";
     } finally { $("#rd-gen").disabled = false; }
+  });
+  $("#rd-p-go").addEventListener("click", async () => {
+    const text = $("#rd-p-text").value.trim(), title = $("#rd-p-title").value.trim() || "自分で選んだ文章";
+    if (wordCount(text) < 30) { $("#rd-status").textContent = "本文を30語以上貼ってください。"; return; }
+    const doc = { date: ymd(new Date()), createdAt: Date.now(), level: "", genre: "pasted", title: title.slice(0, 200), text: text.slice(0, 20000), words: wordCount(text), source: $("#rd-p-src").value.trim().slice(0, 300), questions: [], chunks: [], summary: "", added: [], used: [] };
+    $("#rd-p-go").disabled = true; readStart = 0;
+    try {
+      if (db) { const ref = await db.collection("reading").add(doc); cur = Object.assign({ id: ref.id }, doc); } else cur = Object.assign({ id: "local" }, doc);
+      $("#rd-p-text").value = ""; $("#rd-p-title").value = ""; $("#rd-p-src").value = ""; $("#rd-paste-box").open = false;
+      renderReader(); $("#rd-reader").scrollIntoView({ behavior: "smooth", block: "start" });
+      if (sample) {
+        $("#rd-status").textContent = "内容チェックと使える表現を作っています…";
+        const v = await sample.json(`The following English text is for a CEFR B1 Japanese learner doing extensive reading. Return JSON only: {"questions": [{"q": string (English question about the main idea), "a": string (short model answer in Japanese)}] (exactly 2), "chunks": [{"en": string (a useful chunk exactly as it appears in the text), "ja": string (Japanese meaning and when to use it)}] (exactly 5)}\n\nText:\n"""\n${doc.text.slice(0, 8000)}\n"""`, { modelTier: "quick" });
+        const qs = (Array.isArray(v && v.questions) ? v.questions : []).slice(0, 3).map((q) => ({ q: String(q.q || "").slice(0, 300), a: String(q.a || "").slice(0, 300) }));
+        const cs = (Array.isArray(v && v.chunks) ? v.chunks : []).slice(0, 6).map((c) => ({ en: String(c.en || "").slice(0, 200), ja: String(c.ja || "").slice(0, 200) })).filter((c) => c.en);
+        curUpdate({ questions: qs, chunks: cs }); renderReader(); $("#rd-status").textContent = "";
+      }
+    } catch (e) { $("#rd-status").textContent = "内容チェックは作れませんでしたが、読むことはできます。"; }
+    finally { $("#rd-p-go").disabled = false; }
   });
   function curUpdate(data) {
     Object.assign(cur, data);
