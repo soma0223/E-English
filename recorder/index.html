@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fluency Lab Recorder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Same tokens as Fluency Lab so the two pages read as one tool. */
+:root {
+  --bg: #f3f5f2; --surface: #ffffff; --ink: #16212a; --muted: #5a6870; --line: #d9e0dd;
+  --speech: #0d7a72; --speech-soft: #d5ebe8; --pause: #c98200; --long: #c0392b; --env: #b9c6c2;
+  --f-display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-data: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0e1417; --surface: #162026; --ink: #e5ecec; --muted: #93a3a8; --line: #29363c;
+    --speech: #3cc2b4; --speech-soft: #173a37; --pause: #f0b23d; --long: #f07158; --env: #34444a; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.65;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 24px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: 1.8rem; line-height: 1.15; margin: 0; }
+h1 .dot { color: var(--speech); }
+.lede { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+h2 { font-size: 1.05rem; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+h2 .step { font-family: var(--f-data); font-size: .75rem; color: var(--speech); letter-spacing: .08em; }
+section { display: flex; flex-direction: column; gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hint { color: var(--muted); font-size: .85rem; margin: 0; }
+label { font-weight: 500; font-size: .9rem; }
+select, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+textarea { min-height: 90px; resize: vertical; font-family: var(--f-data); font-size: .85rem; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.center { justify-content: center; }
+button { font: inherit; font-weight: 700; cursor: pointer; border-radius: 8px; padding: 10px 16px; border: 1px solid var(--speech); background: var(--speech); color: var(--surface); }
+button.ghost { background: transparent; color: var(--speech); }
+button.quiet { background: transparent; color: var(--muted); border-color: var(--line); font-weight: 500; padding: 6px 10px; font-size: .8rem; }
+button.rec { background: var(--long); border-color: var(--long); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--speech); outline-offset: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 14px; border-radius: 999px; font-size: .88rem; }
+.seg button[aria-pressed="true"] { background: var(--speech-soft); color: var(--speech); }
+.topic-en { font-family: var(--f-data); font-size: .9rem; background: var(--speech-soft); border-radius: 8px; padding: 10px 12px; margin: 0; }
+.rounds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.round { border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; display: flex; flex-direction: column; }
+.round b { font-family: var(--f-data); }
+.round span { font-size: .72rem; color: var(--muted); }
+.round.on { border-color: var(--speech); background: var(--speech-soft); }
+.round.fin span { color: var(--speech); }
+.clock { font-family: var(--f-data); font-size: clamp(3.4rem, 18vw, 6rem); font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; line-height: 1; }
+.clock.done { color: var(--pause); }
+.track { height: 6px; background: var(--speech-soft); border-radius: 999px; overflow: hidden; }
+.track span { display: block; height: 100%; background: var(--speech); width: 0; }
+.live { display: flex; align-items: center; gap: 10px; justify-content: center; font-size: .85rem; color: var(--muted); min-height: 1.6em; }
+.dot-live { width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
+.dot-live.speak { background: var(--speech); }
+.dot-live.quiet { background: var(--pause); }
+.dot-live.long { background: var(--long); }
+.meter { flex: 0 0 120px; height: 6px; background: var(--speech-soft); border-radius: 999px; overflow: hidden; }
+.meter span { display: block; height: 100%; width: 0; background: var(--speech); }
+.status { font-size: .85rem; color: var(--muted); margin: 0; min-height: 1.4em; text-align: center; }
+.status.err { color: var(--long); }
+.takes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.take { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.take h3 { margin: 0; font-size: .9rem; display: flex; justify-content: space-between; }
+.take h3 span { font-family: var(--f-data); font-size: .75rem; color: var(--muted); font-weight: 400; }
+audio { width: 100%; }
+.map-wrap { overflow-x: auto; }
+table.cmp { border-collapse: collapse; width: 100%; font-size: .76rem; }
+table.cmp th, table.cmp td { padding: 6px 4px; border-top: 1px solid var(--line); text-align: right; font-family: var(--f-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.cmp th:first-child, table.cmp td:first-child { text-align: left; font-family: var(--f-body); padding-left: 0; }
+table.cmp thead th { border-top: 0; color: var(--muted); font-weight: 500; }
+.up { color: var(--speech); font-weight: 600; } .down { color: var(--long); font-weight: 600; } .flat { color: var(--muted); }
+.notes { display: flex; flex-direction: column; gap: 6px; font-size: .88rem; }
+.hist { list-style: none; margin: 0; padding: 0; }
+.hist li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .85rem; }
+.hist li:first-child { border-top: 0; }
+.hist .n { font-family: var(--f-data); font-size: .8rem; text-align: right; }
+.hist .w { color: var(--muted); font-family: var(--f-data); font-size: .75rem; }
+a { color: var(--speech); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Fluency Lab<span class="dot">.</span> Recorder</h1>
+    <p class="lede">マイクで直接録音して、沈黙・速さ・ラン長をその場で測るページ。添削と記録は <a href="https://claude.ai/artifact/JXknxLAF7rD6etK1G393nh" target="_blank" rel="noopener">Fluency Lab</a> で。</p>
+  </header>
+
+  <section>
+    <h2><span class="step">SET</span>何を録る？</h2>
+    <div class="panel">
+      <div class="seg" role="group" aria-label="モード">
+        <button id="mode-432" aria-pressed="true">4/3/2</button>
+        <button id="mode-one" aria-pressed="false">1回だけ（測る用）</button>
+      </div>
+      <label for="topic">お題</label>
+      <select id="topic"></select>
+      <p class="topic-en" id="topic-en"></p>
+      <div class="row">
+        <label><input type="checkbox" id="asr" checked> 英語を自動で文字起こしする</label>
+      </div>
+      <p class="hint" id="asr-note">ブラウザの音声認識を使います（Chrome では音声が Google のサーバーに送られます）。うまく動かない端末では、録音と沈黙の計測だけ行います。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step">REC</span><span id="rec-title">3ラウンド録音</span></h2>
+    <div class="panel">
+      <div class="rounds" id="rounds"></div>
+      <div class="clock" id="clock">4:00</div>
+      <div class="track"><span id="track"></span></div>
+      <div class="live"><span class="dot-live" id="live-dot"></span><span id="live-text">待機中</span><span class="meter"><span id="meter"></span></span></div>
+      <p class="status" id="status" role="status">「録音して開始」を押すと、マイクの許可を求められます。</p>
+      <div class="row center">
+        <button class="rec" id="start">● 録音して開始</button>
+        <button class="ghost" id="stop" hidden>■ 止める</button>
+        <button class="ghost" id="next" hidden>次のラウンドへ</button>
+        <button class="quiet" id="reset">最初から</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step">RESULT</span>結果</h2>
+    <div class="panel">
+      <div class="takes" id="takes"></div>
+      <div class="map-wrap"><table class="cmp" id="table"></table></div>
+      <div class="notes" id="notes"></div>
+      <div class="row">
+        <button id="copy" disabled>結果をコピー</button>
+        <a href="https://claude.ai/artifact/JXknxLAF7rD6etK1G393nh#timer" target="_blank" rel="noopener" id="open-lab">Fluency Lab を開く</a>
+      </div>
+      <p class="hint">Claude の比較コメントがほしいときは、各ラウンドの「音声を保存」→ Fluency Lab の 4/3/2 タブ（1回だけの場合は「測る」）に入れて、文字起こしを貼ってください。コピーした結果を Claude Code のチャットに貼っても分析できます。</p>
+      <p class="status" id="copy-status" role="status"></p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="step">LOG</span>この端末の記録</h2>
+    <div class="panel">
+      <ul class="hist" id="hist"></ul>
+      <p class="hint" id="hist-empty">まだ記録はありません。録音を終えると自動で残ります（この端末のブラウザにだけ保存されます）。</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmt = (v, d = 0) => v == null || !isFinite(v) ? "—" : Number(v).toFixed(d);
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  async function analyzeAudio(file) {
+    const buf = await file.arrayBuffer();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const audio = await new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+    try { ctx.close(); } catch (e) {}
+    const sr = audio.sampleRate, hop = Math.max(1, Math.round(sr * 0.01));
+    const chans = []; for (let c = 0; c < audio.numberOfChannels; c++) chans.push(audio.getChannelData(c));
+    const frames = Math.floor(audio.length / hop);
+    const lvl = new Float32Array(frames);
+    for (let f = 0; f < frames; f++) {
+      let sum = 0; const s0 = f * hop;
+      for (let c = 0; c < chans.length; c++) { const d = chans[c]; for (let i = s0; i < s0 + hop; i++) sum += d[i] * d[i]; }
+      lvl[f] = 20 * Math.log10(Math.sqrt(sum / (hop * chans.length)) + 1e-9);
+    }
+    const sorted = Array.from(lvl).sort((a, b) => a - b);
+    const pct = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+    const noise = pct(0.1), peak = pct(0.98);
+    const thr = noise + Math.max(8, (peak - noise) * 0.3);
+    let segs = [], s = -1;
+    for (let i = 0; i < frames; i++) {
+      const v = lvl[i] > thr;
+      if (v && s < 0) s = i;
+      if (!v && s >= 0) { segs.push([s, i]); s = -1; }
+    }
+    if (s >= 0) segs.push([s, frames]);
+    segs = segs.filter(([a, b]) => b - a >= 6);
+    const runs = [];
+    for (const seg of segs) { const last = runs[runs.length - 1]; if (last && seg[0] - last[1] < 25) last[1] = seg[1]; else runs.push([seg[0], seg[1]]); }
+    const N = 600, env = [];
+    for (let k = 0; k < N; k++) {
+      const a = Math.floor(k * frames / N), b = Math.max(a + 1, Math.floor((k + 1) * frames / N));
+      let m = -200; for (let i = a; i < b && i < frames; i++) if (lvl[i] > m) m = lvl[i];
+      env.push(Math.max(0, Math.min(1, (m - noise) / Math.max(1, peak - noise))));
+    }
+    return { duration: audio.duration, runs: runs.map(([a, b]) => [a / 100, b / 100]), env };
+  }
+
+  const FILLERS = ["um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm", "mm"];
+  function analyzeText(text) {
+    const tokens = (text.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g) || []);
+    const fillers = tokens.filter((t) => FILLERS.includes(t)).length;
+    const youKnow = (text.toLowerCase().match(/\byou know\b/g) || []).length;
+    const words = tokens.filter((t) => !FILLERS.includes(t));
+    const repeats = []; let i = 0;
+    while (i < words.length) {
+      let hit = 0;
+      for (let n = 6; n >= 1; n--) {
+        if (i + 2 * n > words.length) continue;
+        let same = true;
+        for (let k = 0; k < n; k++) if (words[i + k] !== words[i + n + k]) { same = false; break; }
+        if (same) { hit = n; break; }
+      }
+      if (hit) { repeats.push(words.slice(i, i + hit).join(" ")); i += hit; } else i++;
+    }
+    const jaChunks = (text.match(/[぀-ヿ一-鿿]+/g) || []).length;
+    return { words: words.length, fillers: fillers + youKnow, repeats, jaChunks };
+  }
+
+  function compute(a, t, manualSec) {
+    const r = { words: t.words, fillers: t.fillers, repeats: t.repeats, jaChunks: t.jaChunks, hasAudio: !!a };
+    if (a && a.runs.length) {
+      const first = a.runs[0][0], last = a.runs[a.runs.length - 1][1];
+      r.total = last - first;
+      r.phonation = a.runs.reduce((s, [x, y]) => s + (y - x), 0);
+      const pauses = [];
+      for (let k = 1; k < a.runs.length; k++) pauses.push(a.runs[k][0] - a.runs[k - 1][1]);
+      r.pauses = pauses.length;
+      r.longPauses = pauses.filter((p) => p >= 1).length;
+      r.meanPause = pauses.length ? pauses.reduce((s, p) => s + p, 0) / pauses.length : 0;
+      r.maxPause = pauses.length ? Math.max(...pauses) : 0;
+      r.pausesPerMin = r.pauses / (r.total / 60);
+      r.runs = a.runs.length;
+      if (t.words) { r.wpm = t.words / (r.total / 60); r.art = t.words / (r.phonation / 60); r.mlr = t.words / a.runs.length; }
+    } else if (manualSec > 0) {
+      r.total = manualSec;
+      if (t.words) r.wpm = t.words / (manualSec / 60);
+    }
+    return r;
+  }
+
+
+  const TOPICS = [
+    { id: "intro", ja: "自己紹介と Why Google", en: "Tell me about yourself and why you want to work at Google." },
+    { id: "yesterday", ja: "昨日やったこと", en: "Describe what you did yesterday, from morning to night." },
+    { id: "movie", ja: "好きな映画・ドラマを紹介する", en: "Tell me about a movie or TV show you love and why." },
+    { id: "hobby", ja: "最近ハマっていること", en: "What have you been into lately? Tell me about it." },
+    { id: "improve", ja: "自分で考えて改善した経験", en: "Tell me about a time you found a better way to do something." },
+  ];
+  TOPICS.forEach((t) => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.ja; $("#topic").appendChild(o); });
+  const topic = () => TOPICS.find((t) => t.id === $("#topic").value) || TOPICS[0];
+  const showTopic = () => { $("#topic-en").textContent = topic().en; };
+  $("#topic").addEventListener("change", showTopic); showTopic();
+
+  const TEST = /[?&]test=1/.test(location.search);
+  const PLAN = { "432": TEST ? [3, 2, 1.5] : [240, 180, 120], one: TEST ? [3] : [120] };
+  let mode = "432", plan = PLAN["432"], round = 0, left = plan[0], running = false, last = 0, raf = 0;
+  let takes = [];          // {blob, url, ext, audio, text, r}
+  let stream = null, rec = null, chunks = [], ac = null, an = null, buf = null, silentFor = 0, lastLevelT = 0, wake = null;
+  let asr = null, asrText = "", asrInterim = "", asrOk = true;
+
+  function setMode(m) {
+    if (running) return;
+    mode = m; plan = PLAN[m]; resetAll();
+    $("#mode-432").setAttribute("aria-pressed", m === "432"); $("#mode-one").setAttribute("aria-pressed", m === "one");
+    $("#rec-title").textContent = m === "432" ? "3ラウンド録音" : "1回録音（2分）";
+  }
+  $("#mode-432").addEventListener("click", () => setMode("432"));
+  $("#mode-one").addEventListener("click", () => setMode("one"));
+
+  const clockText = (s) => { const c = Math.ceil(Math.max(0, s)); return `${Math.floor(c / 60)}:${String(c % 60).padStart(2, "0")}`; };
+  function renderTimer() {
+    $("#rounds").hidden = mode === "one";
+    $("#rounds").innerHTML = plan.map((sec, i) => `<div class="round ${i === round && !takes[i] ? "on" : ""} ${takes[i] ? "fin" : ""}"><b>${Math.round(sec / 60) || sec + "s"}${sec >= 60 ? "分" : ""}</b><span>${takes[i] ? "録音済み" : i === round ? "いま" : `ラウンド${i + 1}`}</span></div>`).join("");
+    $("#clock").textContent = clockText(left);
+    $("#clock").classList.toggle("done", left <= 0);
+    $("#track").style.width = (100 - left / plan[round] * 100) + "%";
+    $("#start").hidden = running || left <= 0;
+    $("#stop").hidden = !running;
+    $("#next").hidden = running || !(left <= 0 && round < plan.length - 1);
+  }
+  function status(t, err) { $("#status").textContent = t; $("#status").classList.toggle("err", !!err); }
+
+  function beep() {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext, ctx = new C();
+      [0, .25, .5].forEach((t) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(.0001, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(.3, ctx.currentTime + t + .02); g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + t + .2); o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .22); });
+      setTimeout(() => { try { ctx.close(); } catch (e) {} }, 1200);
+    } catch (e) {}
+  }
+
+  async function ensureMic() {
+    if (stream) return true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+      status("このブラウザでは録音できません。iPhone なら Safari、パソコンなら Chrome で開いてください。", true); return false;
+    }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch (e) { status("マイクが使えませんでした。ブラウザの設定でこのページのマイクを許可してください。", true); return false; }
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; ac = new C();
+      const src = ac.createMediaStreamSource(stream); an = ac.createAnalyser(); an.fftSize = 1024; src.connect(an); buf = new Float32Array(an.fftSize);
+    } catch (e) { an = null; }
+    return true;
+  }
+  const mime = () => ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || "";
+
+  function startAsr() {
+    asrText = ""; asrInterim = "";
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!$("#asr").checked || !SR) { asr = null; if ($("#asr").checked && !SR) $("#asr-note").textContent = "この端末では自動文字起こしが使えません。録音と沈黙の計測だけ行います。"; return; }
+    try {
+      asr = new SR(); asr.lang = "en-US"; asr.continuous = true; asr.interimResults = true;
+      asr.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) asrText += (asrText ? " " : "") + t.trim(); else interim += t; }
+        asrInterim = interim;
+      };
+      asr.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { asrOk = false; $("#asr-note").textContent = "自動文字起こしが許可されませんでした。録音と沈黙の計測だけ行います。"; } };
+      asr.onend = () => { if (running && asr && asrOk) { try { asr.start(); } catch (e) {} } };
+      asr.start();
+    } catch (e) { asr = null; }
+  }
+  function stopAsr() { const a = asr; asr = null; try { a && a.stop(); } catch (e) {} }
+
+  async function start() {
+    if (!(await ensureMic())) return;
+    try { if (ac && ac.state === "suspended") await ac.resume(); } catch (e) {}
+    chunks = [];
+    const mt = mime();
+    try { rec = mt ? new MediaRecorder(stream, { mimeType: mt }) : new MediaRecorder(stream); } catch (e) { status("録音を始められませんでした。", true); return; }
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => finishTake();
+    rec.start(1000);
+    startAsr();
+    running = true; last = performance.now(); silentFor = 0; lastLevelT = last;
+    try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (e) {}
+    status(mode === "432" ? `ラウンド${round + 1}：止まらずに話し続けて。` : "話し続けて。");
+    raf = requestAnimationFrame(tick); renderTimer();
+  }
+  function stopNow() {
+    if (!running) return;
+    running = false; cancelAnimationFrame(raf);
+    try { wake && wake.release(); } catch (e) {} wake = null;
+    stopAsr();
+    try { rec && rec.state !== "inactive" && rec.stop(); } catch (e) { finishTake(); }
+    $("#live-dot").className = "dot-live"; $("#live-text").textContent = "解析中…"; $("#meter").style.width = "0";
+    renderTimer();
+  }
+  function tick(now) {
+    if (!running) return;
+    left -= (now - last) / 1000; last = now;
+    if (an) {
+      an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+      const db = 20 * Math.log10(Math.sqrt(s / buf.length) + 1e-9), lvl = Math.max(0, Math.min(1, (db + 60) / 45));
+      $("#meter").style.width = (lvl * 100) + "%";
+      const dt = (now - lastLevelT) / 1000; lastLevelT = now;
+      if (db > -42) silentFor = 0; else silentFor += dt;
+      const d = $("#live-dot");
+      d.className = "dot-live " + (silentFor < 0.25 ? "speak" : silentFor < 1 ? "quiet" : "long");
+      $("#live-text").textContent = silentFor < 0.25 ? "話している" : silentFor < 1 ? "小さな沈黙" : `止まっている ${silentFor.toFixed(1)}秒`;
+    }
+    if (left <= 0) { left = 0; beep(); stopNow(); return; }
+    renderTimer(); raf = requestAnimationFrame(tick);
+  }
+
+  async function finishTake() {
+    const i = round;
+    const type = (rec && rec.mimeType) || (chunks[0] && chunks[0].type) || "audio/webm";
+    const blob = new Blob(chunks, { type });
+    const ext = /mp4/.test(type) ? "m4a" : /ogg/.test(type) ? "ogg" : "webm";
+    const take = { blob, url: URL.createObjectURL(blob), ext, audio: null, text: (asrText + (asrInterim ? " " + asrInterim : "")).trim(), r: null };
+    try { take.audio = await analyzeAudio(blob); } catch (e) { take.audio = null; }
+    takes[i] = take; computeTake(i);
+    $("#live-text").textContent = "待機中";
+    if (mode === "432" && i < plan.length - 1) status(`ラウンド${i + 1} 終了。同じ内容を、次は ${plan[i + 1] >= 60 ? plan[i + 1] / 60 + " 分" : plan[i + 1] + " 秒"}で。`);
+    else { status(mode === "432" ? "3ラウンド完了。下で比べてみてください。" : "録音完了。"); saveHistory(); }
+    renderTimer(); renderResults();
+  }
+  function computeTake(i) {
+    const t = takes[i]; if (!t) return;
+    const ta = analyzeText(t.text || "");
+    const r = compute(t.audio, ta, 0);
+    r.repeatsList = ta.repeats; r.repeats = ta.repeats.length;
+    r.longPerMin = r.longPauses != null && r.total ? r.longPauses / (r.total / 60) : null;
+    t.r = r;
+  }
+
+  $("#start").addEventListener("click", start);
+  $("#stop").addEventListener("click", () => { left = 0; beep(); stopNow(); });
+  $("#next").addEventListener("click", () => { round = Math.min(plan.length - 1, round + 1); left = plan[round]; status(`ラウンド${round + 1}：準備ができたら「録音して開始」。`); renderTimer(); });
+  function resetAll() {
+    if (running) return;
+    takes.forEach((t) => t && URL.revokeObjectURL(t.url)); takes = []; round = 0; left = plan[0];
+    status("「録音して開始」を押すと、マイクの許可を求められます。"); renderTimer(); renderResults();
+  }
+  $("#reset").addEventListener("click", resetAll);
+
+  const RMET = [
+    { k: "wpm", ja: "話す速さ", u: "語/分", d: 0, hi: true },
+    { k: "art", ja: "調音速度", u: "語/分", d: 0, hi: true },
+    { k: "mlr", ja: "平均ラン長", u: "語", d: 1, hi: true },
+    { k: "pausesPerMin", ja: "沈黙の頻度", u: "回/分", d: 1, hi: false },
+    { k: "longPerMin", ja: "1秒以上の沈黙", u: "回/分", d: 1, hi: false },
+    { k: "maxPause", ja: "最長の沈黙", u: "秒", d: 1, hi: false },
+    { k: "repeats", ja: "言い直し", u: "回", d: 0, hi: false },
+    { k: "words", ja: "単語数", u: "語", d: 0, hi: null },
+    { k: "total", ja: "長さ", u: "秒", d: 0, hi: null },
+  ];
+  function renderResults() {
+    const n = plan.length;
+    $("#takes").innerHTML = plan.map((sec, i) => {
+      const t = takes[i];
+      return `<div class="take"><h3>${n > 1 ? `ラウンド${i + 1}` : "録音"}<span>${t && t.audio ? fmt(t.audio.duration) + "秒" : "未録音"}</span></h3>
+        ${t ? `<audio controls src="${t.url}"></audio>
+        <a href="${t.url}" download="fluency-${topic().id}-${n > 1 ? "r" + (i + 1) : "take"}.${t.ext}">音声を保存</a>
+        <label for="tx-${i}" class="hint">文字起こし（直してOK）</label>
+        <textarea id="tx-${i}" data-i="${i}">${esc(t.text)}</textarea>` : `<p class="hint">まだ録音していません。</p>`}</div>`;
+    }).join("");
+    const rs = plan.map((_, i) => takes[i] && takes[i].r);
+    const cols = n > 1 ? ["R1", "R2", "R3"] : ["値"];
+    let html = `<thead><tr><th>指標</th>${cols.map((c) => `<th>${c}</th>`).join("")}${n > 1 ? "<th>変化</th>" : ""}</tr></thead><tbody>`;
+    for (const m of RMET) {
+      const vs = rs.map((r) => r && r[m.k] != null && isFinite(r[m.k]) ? r[m.k] : null);
+      let ch = "";
+      if (n > 1) {
+        ch = `<td class="flat">—</td>`;
+        if (vs[0] != null && vs[2] != null) {
+          if (m.k === "words" && !vs[0]) ch = `<td class="flat">—</td>`;
+          else if (m.k === "words") ch = `<td class="${vs[2] / Math.max(1, vs[0]) >= .8 ? "up" : "down"}">${Math.round(vs[2] / Math.max(1, vs[0]) * 100)}%</td>`;
+          else if (m.hi === null) ch = `<td class="flat">${fmt(vs[2] - vs[0], m.d)}</td>`;
+          else { const diff = vs[2] - vs[0], good = m.hi ? diff > 0 : diff < 0; ch = `<td class="${Math.abs(diff) < 1e-9 ? "flat" : good ? "up" : "down"}">${vs[0] ? `${diff >= 0 ? "+" : ""}${Math.round(diff / vs[0] * 100)}%` : fmt(diff, m.d)}</td>`; }
+        }
+      }
+      html += `<tr><td>${m.ja} <span class="hint" style="font-size:.7rem">${m.u}</span></td>${vs.map((v) => `<td>${v == null ? "—" : fmt(v, m.d)}</td>`).join("")}${ch}</tr>`;
+    }
+    $("#table").innerHTML = html + "</tbody>";
+    const notes = [];
+    const a = rs[0], c = rs[n - 1];
+    if (!rs.some(Boolean)) notes.push("録音すると、ここに結果が出ます。");
+    if (rs.some((r) => r && !r.words)) notes.push("文字起こしが空のラウンドは、速さとラン長が出ません。文字起こし欄に英文を入れると計算し直します。");
+    if (n > 1 && a && c && a.words && c.words) {
+      const keep = c.words / a.words;
+      notes.push(keep >= .8 ? `内容の維持：R3 は R1 の ${Math.round(keep * 100)}% の単語数。同じ話を短い時間で言えています。` : `内容の維持：R3 は R1 の ${Math.round(keep * 100)}%。4/3/2 は内容を削らずに速くする練習です。`);
+      if (a.wpm != null && c.wpm != null) { const g = (c.wpm - a.wpm) / a.wpm; notes.push(g >= .15 ? `話す速さが ${Math.round(g * 100)}% 上がりました。` : g > 0 ? `話す速さは ${Math.round(g * 100)}% の伸び。R1 で話の骨組みをはっきり決めておくと伸びやすくなります。` : "話す速さが上がっていません。R1 でうまく言えた言い回しを、R2・R3 でそのまま使ってみてください。"); }
+    }
+    if (n > 1 && a && c && a.pausesPerMin != null && c.pausesPerMin != null) notes.push(`沈黙の頻度：${fmt(a.pausesPerMin, 1)} → ${fmt(c.pausesPerMin, 1)} 回/分。`);
+    if (n === 1 && a && a.wpm != null && a.art != null && a.art - a.wpm > 45) notes.push("話している間の速さに比べて全体の速さが大きく落ちています。次の文を組み立てる時間がボトルネックです。");
+    $("#notes").innerHTML = notes.map((t) => `<div>${esc(t)}</div>`).join("");
+    $("#copy").disabled = !rs.some(Boolean);
+  }
+  let txTimer = 0;
+  $("#takes").addEventListener("input", (e) => {
+    const el = e.target; if (!el.dataset || el.dataset.i == null) return;
+    const i = Number(el.dataset.i); if (!takes[i]) return;
+    takes[i].text = el.value;
+    clearTimeout(txTimer); txTimer = setTimeout(() => { plan.forEach((_, j) => computeTake(j)); const keepFocus = document.activeElement && document.activeElement.id; const pos = el.selectionStart; renderResults(); const f = keepFocus && document.getElementById(keepFocus); if (f) { f.focus(); try { f.setSelectionRange(pos, pos); } catch (e) {} } saveHistory(true); }, 700);
+  });
+
+  function resultText() {
+    const L = [`【Fluency Lab Recorder 結果】`, `お題: ${topic().en}（${topic().ja}）`, `モード: ${mode === "432" ? "4/3/2" : "1回"}`];
+    plan.forEach((_, i) => {
+      const t = takes[i]; if (!t || !t.r) return; const r = t.r;
+      L.push("", `■ ${plan.length > 1 ? `ラウンド${i + 1}` : "録音"}`,
+        `長さ ${fmt(r.total)}秒 / 単語数 ${r.words} / 話す速さ ${fmt(r.wpm)} 語/分 / 調音速度 ${fmt(r.art)} 語/分 / 平均ラン長 ${fmt(r.mlr, 1)} 語`,
+        `沈黙 ${r.pauses ?? "—"}回（${fmt(r.pausesPerMin, 1)}回/分）/ 1秒以上 ${r.longPauses ?? "—"}回 / 最長 ${fmt(r.maxPause, 1)}秒 / 言い直し ${r.repeats}回`,
+        `文字起こし: ${t.text || "(なし)"}`);
+    });
+    return L.join("\n");
+  }
+  $("#copy").addEventListener("click", async () => {
+    const txt = resultText();
+    try { await navigator.clipboard.writeText(txt); $("#copy-status").textContent = "コピーしました。"; }
+    catch (e) { $("#copy-status").textContent = "コピーできませんでした。"; }
+  });
+
+  // local history
+  let currentHistId = null;
+  function readHist() { try { return JSON.parse(load("flr-hist") || "[]"); } catch (e) { return []; } }
+  function saveHistory(updateOnly) {
+    if (updateOnly && !currentHistId) return;
+    const rs = plan.map((_, i) => takes[i] && takes[i].r);
+    if (!rs.some(Boolean)) return;
+    const h = readHist().filter((x) => x.id !== currentHistId);
+    if (!currentHistId) currentHistId = String(Date.now());
+    h.unshift({ id: currentHistId, at: Number(currentHistId), mode, topic: topic().ja, rounds: rs.map((r) => r ? { wpm: r.wpm ?? null, mlr: r.mlr ?? null, ppm: r.pausesPerMin ?? null } : null) });
+    store("flr-hist", JSON.stringify(h.slice(0, 50))); renderHist();
+  }
+  function renderHist() {
+    const h = readHist(); $("#hist-empty").hidden = h.length > 0;
+    $("#hist").innerHTML = h.map((x) => {
+      const d = new Date(x.at), a = x.rounds[0] || {}, c = x.rounds[x.rounds.length - 1] || {};
+      const nums = x.mode === "432" ? `${fmt(a.wpm)} → ${fmt(c.wpm)} 語/分<br>沈黙 ${fmt(a.ppm, 1)} → ${fmt(c.ppm, 1)}/分` : `${fmt(a.wpm)} 語/分<br>沈黙 ${fmt(a.ppm, 1)}/分`;
+      return `<li><span>${esc(x.topic)}<br><span class="w">${x.mode === "432" ? "4/3/2" : "1回"} · ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</span></span><span class="n">${nums}</span></li>`;
+    }).join("");
+  }
+  // new history entry each time a fresh session starts
+  $("#reset").addEventListener("click", () => { currentHistId = null; });
+  $("#mode-432").addEventListener("click", () => { currentHistId = null; });
+  $("#mode-one").addEventListener("click", () => { currentHistId = null; });
+
+  renderTimer(); renderResults(); renderHist();
+})();
+</script>
+</body>
+</html>
