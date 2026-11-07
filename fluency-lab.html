@@ -261,6 +261,13 @@ table.cmp .flat { color: var(--muted); }
 .plan-view li { overflow-wrap: anywhere; }
 .peek { font-size: .88rem; }
 .peek p { margin: 6px 0 0; font-family: var(--f-data); font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
+.mat-link { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.mat-link a.open { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--speech); border: 1px solid var(--speech); border-radius: 8px; padding: 8px 12px; text-decoration: none; }
+.mat-link .u { font-family: var(--f-data); font-size: .75rem; color: var(--muted); overflow-wrap: anywhere; min-width: 0; flex: 1 1 160px; }
+.mat-link input { flex: 1 1 200px; min-width: 0; }
+.links { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.links li { display: flex; flex-direction: column; }
+.links a { color: var(--speech); font-weight: 700; }
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -536,6 +543,7 @@ audio { width: 100%; }
           <label for="m-select" class="hint">素材</label>
           <select id="m-select" style="flex:1;min-width:0"></select>
         </div>
+        <div class="mat-link" id="m-link"></div>
         <div class="mat-days" id="m-days"></div>
         <p class="hint" id="m-advice"></p>
         <details id="m-new-box">
@@ -543,6 +551,7 @@ audio { width: 100%; }
           <div class="two" style="margin-top:8px">
             <div><label for="m-name">名前</label><input type="text" id="m-name" placeholder="6 Minute English: Scared of speaking English?"></div>
             <div><label for="m-where">どこで聞くか（任意）</label><input type="text" id="m-where" placeholder="Podcasts アプリ / BBC のページ"></div>
+            <div><label for="m-url">URL（任意）</label><input type="url" id="m-url" inputmode="url" placeholder="https://www.bbc.co.uk/learningenglish/..."></div>
           </div>
           <div class="row" style="margin-top:8px"><button id="m-add">登録する</button></div>
         </details>
@@ -551,6 +560,16 @@ audio { width: 100%; }
           <button class="quiet" id="m-del">この素材を削除</button>
         </div>
         <p class="status" id="m-status" role="status"></p>
+        <details>
+          <summary>おすすめ素材のリンク</summary>
+          <ul class="links">
+            <li><a href="https://www.bbc.co.uk/learningenglish/english/features/6-minute-english" target="_blank" rel="noopener">BBC Learning English「6 Minute English」</a><span class="hint">B1。スクリプト付き。最初の素材に</span></li>
+            <li><a href="https://www.allearsenglish.com/" target="_blank" rel="noopener">All Ears English</a><span class="hint">B2。自然な速さのアメリカ英語の会話</span></li>
+            <li><a href="https://www.ted.com/talks" target="_blank" rel="noopener">TED Talks</a><span class="hint">B1+〜B2。公式の書き起こし付き</span></li>
+            <li><a href="https://www.youtube.com/@lifeatgoogle" target="_blank" rel="noopener">Life at Google（YouTube）</a><span class="hint">B2。面接の準備や社員の話。YouTube の文字起こしを使う</span></li>
+            <li><a href="https://learningenglish.voanews.com/" target="_blank" rel="noopener">VOA Learning English</a><span class="hint">A2〜B1。ゆっくり読まれるニュース</span></li>
+          </ul>
+        </details>
       </div>
     </section>
 
@@ -1636,6 +1655,7 @@ ${body}`;
       sel.value = curMat;
     }
     const m = matOf();
+    renderMatLink(m);
     $("#m-today").disabled = !m; $("#m-del").disabled = !m;
     const n = m ? (m.days || []).length : 0, today = ymd(new Date()), doneToday = !!(m && (m.days || []).includes(today));
     $("#m-days").innerHTML = m ? [1, 2, 3, 4, 5].map((k) => `<span class="d ${k <= n ? "on" : ""} ${k > 3 ? "extra" : ""}">${k}</span>`).join("") + `<span class="lbl">${n}日目${n > 5 ? `（+${n - 5}）` : ""}・目安 3〜5日</span>` : "";
@@ -1650,14 +1670,37 @@ ${body}`;
     if (document.activeElement !== $("#s-script")) $("#s-script").value = m ? (m.script || "") : "";
     renderSents(); renderSegs();
   }
+  const safeUrl = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch (e) { return ""; } };
+  let editingUrl = false;
+  function renderMatLink(m) {
+    const box = $("#m-link");
+    if (!m || !db) { box.innerHTML = ""; return; }
+    const u = safeUrl(m.url || "");
+    if (u && !editingUrl) {
+      box.innerHTML = `<a class="open" href="${esc(u)}" target="_blank" rel="noopener">素材を開く ↗</a><span class="u">${esc(u)}</span><button class="quiet" id="m-url-edit">URL を変更</button>`;
+    } else {
+      box.innerHTML = `<input type="url" id="m-url-in" inputmode="url" placeholder="この素材の URL を貼る" value="${esc(m.url || "")}"><button class="ghost" id="m-url-save">URL を保存</button>`;
+    }
+  }
+  $("#m-link").addEventListener("click", (e) => {
+    const m = matOf(); if (!m) return;
+    if (e.target.id === "m-url-edit") { editingUrl = true; renderMatLink(m); const i = $("#m-url-in"); if (i) i.focus(); return; }
+    if (e.target.id === "m-url-save") {
+      const raw = $("#m-url-in").value.trim(), u = safeUrl(raw);
+      if (raw && !u) { $("#m-status").textContent = "https:// から始まる URL を貼ってください。"; return; }
+      editingUrl = false; matUpdate(m, { url: u }); renderMatLink(m); $("#m-status").textContent = u ? "URL を保存しました。" : "URL を消しました。";
+    }
+  });
   $("#m-select").addEventListener("change", (e) => { curMat = e.target.value; store("fl-mat", curMat); renderMats(); });
   $("#m-add").addEventListener("click", async () => {
     const name = $("#m-name").value.trim(); if (!name) { $("#m-status").textContent = "素材の名前を入れてください。"; return; }
     if (!db) return;
     $("#m-add").disabled = true;
     try {
-      const ref = await db.collection("materials").add({ name, where: $("#m-where").value.trim(), script: "", segments: [], days: [], hard: [], createdAt: Date.now(), lastUsed: Date.now() });
-      curMat = ref.id; store("fl-mat", curMat); $("#m-name").value = ""; $("#m-where").value = ""; $("#m-new-box").open = false;
+      const rawUrl = $("#m-url").value.trim();
+      if (rawUrl && !safeUrl(rawUrl)) { $("#m-status").textContent = "URL は https:// から始まる形で入れてください。"; $("#m-add").disabled = false; return; }
+      const ref = await db.collection("materials").add({ name, where: $("#m-where").value.trim(), url: safeUrl(rawUrl), script: "", segments: [], days: [], hard: [], createdAt: Date.now(), lastUsed: Date.now() });
+      curMat = ref.id; store("fl-mat", curMat); $("#m-name").value = ""; $("#m-where").value = ""; $("#m-url").value = ""; $("#m-new-box").open = false;
       $("#m-status").textContent = "登録しました。スクリプトを下に貼ってください。"; renderMats();
     } catch (e) { $("#m-status").textContent = "登録できませんでした。"; }
     finally { $("#m-add").disabled = false; }
