@@ -481,10 +481,11 @@ audio { width: 100%; }
           <div class="row plan-tpl"><span class="hint">型を入れる：</span><button class="quiet" data-tpl="ppf">過去→現在→未来</button><button class="quiet" data-tpl="star">STAR</button><button class="quiet" data-tpl="prep">結論→理由→例</button></div>
           <textarea id="plan-text" placeholder="例&#10;慶應・経済&#10;Google＝自分で考えて改善できる&#10;ゼミで資料の作り方を変えた&#10;Google で〇〇したい"></textarea>
           <div class="row"><button class="ghost" id="plan-timer">1分で考える</button><span class="hint" id="plan-left">文を書くと読み上げになるので、1行1〜3語で。</span></div>
+          <div class="row"><label for="plan-hide" class="hint">メモの表示</label><select id="plan-hide" style="width:auto"><option value="all">3ラウンドとも見る</option><option value="r3" selected>R3 だけ隠す</option><option value="speak">話している間は隠す</option></select></div>
         </div>
         <div class="rounds" id="rounds"></div>
         <div class="clock" id="clock" aria-live="off">4:00</div>
-        <ol class="plan-view" id="plan-view" hidden></ol>
+        <ol class="plan-view" id="plan-view" hidden></ol><p class="hint" id="plan-hidden-note" hidden style="text-align:center">メモは隠しています。骨組みを思い出しながら話してください。</p>
         <div class="track"><span id="t-track"></span></div>
         <p class="status" id="t-status" role="status" style="text-align:center">ラウンド1：4分で話します。準備ができたら開始。</p>
         <div class="row center">
@@ -1326,6 +1327,7 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     $("#t-start").textContent = tRunning ? "一時停止" : tLeft < ROUNDS[tRound] && tLeft > 0 ? "再開" : "開始";
     $("#t-start").hidden = tLeft <= 0;
     $("#t-next").hidden = !(tLeft <= 0 && tRound < 2);
+    renderPlanView();
   }
   function beep() {
     try {
@@ -1360,9 +1362,13 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
   // ---------- planning notes (pre-task planning) ----------
   const TPL = { ppf: "過去：\n現在：\n未来：", star: "S 状況：\nT 課題：\nA 行動：\nR 結果：", prep: "結論：\n理由：\n例：\nもう一度結論：" };
   const planKey = () => "fl-plan-" + (tSel.value);
+  function planHidden() { const m = load("fl-plan-hide") || "r3"; return m === "r3" ? tRound === 2 : m === "speak" ? tRunning : false; }
   function renderPlanView() {
-    const lines = $("#plan-text").value.split("\n").map((x) => x.trim()).filter(Boolean);
-    $("#plan-view").hidden = !lines.length;
+    const ta = document.getElementById("plan-text"); if (!ta) return;
+    const lines = ta.value.split("\n").map((x) => x.trim()).filter(Boolean);
+    const hide = planHidden();
+    $("#plan-view").hidden = !lines.length || hide;
+    $("#plan-hidden-note").hidden = !(lines.length && hide);
     $("#plan-view").innerHTML = lines.map((x) => `<li>${esc(x)}</li>`).join("");
   }
   function loadPlan() { $("#plan-text").value = load(planKey()) || ""; renderPlanView(); }
@@ -1378,6 +1384,8 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     clearInterval(planT); let n = 60; $("#plan-left").textContent = "残り 60 秒"; $("#plan-text").focus();
     planT = setInterval(() => { n--; $("#plan-left").textContent = n > 0 ? `残り ${n} 秒` : "準備おわり。話し始めましょう。"; if (n <= 0) { clearInterval(planT); beep(); } }, 1000);
   });
+  { const m = load("fl-plan-hide"); if (m && ["all", "r3", "speak"].includes(m)) $("#plan-hide").value = m; }
+  $("#plan-hide").addEventListener("change", () => { store("fl-plan-hide", $("#plan-hide").value); renderPlanView(); });
   loadPlan();
   tSel.addEventListener("change", loadPlan);
 
