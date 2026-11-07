@@ -149,7 +149,9 @@ a { color: var(--speech); }
       <p class="status" id="status" role="status">「録音して開始」を押すと、マイクの許可を求められます。</p>
       <div class="row center">
         <button class="rec" id="start">● 録音して開始</button>
-        <button class="ghost" id="stop" hidden>■ 止める</button>
+        <button class="ghost" id="pause" hidden>❚❚ 一時停止</button>
+        <button id="resume" hidden>▶ 再開</button>
+        <button class="ghost" id="stop" hidden>■ このラウンドを終える</button>
         <button class="ghost" id="next" hidden>次のラウンドへ</button>
         <button class="quiet" id="reset">最初から</button>
       </div>
@@ -287,7 +289,7 @@ a { color: var(--speech); }
   let mode = "432", plan = PLAN["432"], round = 0, left = plan[0], running = false, last = 0, raf = 0;
   let takes = [];          // {blob, url, ext, audio, text, r}
   let stream = null, rec = null, chunks = [], ac = null, an = null, buf = null, silentFor = 0, lastLevelT = 0, wake = null;
-  let asr = null, asrText = "", asrInterim = "", asrOk = true;
+  let asr = null, asrText = "", asrInterim = "", asrOk = true, paused = false;
 
   function setMode(m) {
     if (running) return;
@@ -307,6 +309,8 @@ a { color: var(--speech); }
     $("#track").style.width = (100 - left / plan[round] * 100) + "%";
     $("#start").hidden = running || left <= 0;
     $("#stop").hidden = !running;
+    $("#pause").hidden = !running || paused;
+    $("#resume").hidden = !paused;
     $("#next").hidden = running || !(left <= 0 && round < plan.length - 1);
     renderPlanView();
     const t0 = takes[0], showPeek = mode === "432" && !running && round >= 0 && takes.length >= 1 && t0 && t0.text && takes.length < plan.length;
@@ -338,8 +342,8 @@ a { color: var(--speech); }
   }
   const mime = () => ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || "";
 
-  function startAsr() {
-    asrText = ""; asrInterim = "";
+  function startAsr(keep) {
+    if (!keep) { asrText = ""; asrInterim = ""; } else if (asrInterim) { asrText += (asrText ? " " : "") + asrInterim.trim(); asrInterim = ""; }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!$("#asr").checked || !SR) { asr = null; if ($("#asr").checked && !SR) $("#asr-note").textContent = "この端末では自動文字起こしが使えません。録音と沈黙の計測だけ行います。"; return; }
     try {
@@ -350,7 +354,7 @@ a { color: var(--speech); }
         asrInterim = interim;
       };
       asr.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { asrOk = false; $("#asr-note").textContent = "自動文字起こしが許可されませんでした。録音と沈黙の計測だけ行います。"; } };
-      asr.onend = () => { if (running && asr && asrOk) { try { asr.start(); } catch (e) {} } };
+      asr.onend = () => { if (running && !paused && asr && asrOk) { try { asr.start(); } catch (e) {} } };
       asr.start();
     } catch (e) { asr = null; }
   }
@@ -366,14 +370,15 @@ a { color: var(--speech); }
     rec.onstop = () => finishTake();
     rec.start(1000);
     startAsr();
-    running = true; last = performance.now(); silentFor = 0; lastLevelT = last;
+    running = true; paused = false; last = performance.now(); silentFor = 0; lastLevelT = last;
     try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (e) {}
     status(mode === "432" ? `ラウンド${round + 1}：止まらずに話し続けて。` : "話し続けて。");
     raf = requestAnimationFrame(tick); renderTimer();
   }
   function stopNow() {
     if (!running) return;
-    running = false; cancelAnimationFrame(raf);
+    if (paused) { try { rec && rec.state === "paused" && rec.resume(); } catch (e) {} }
+    running = false; paused = false; cancelAnimationFrame(raf);
     try { wake && wake.release(); } catch (e) {} wake = null;
     stopAsr();
     try { rec && rec.state !== "inactive" && rec.stop(); } catch (e) { finishTake(); }
@@ -381,7 +386,7 @@ a { color: var(--speech); }
     renderTimer();
   }
   function tick(now) {
-    if (!running) return;
+    if (!running || paused) return;
     left -= (now - last) / 1000; last = now;
     if (an) {
       an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
@@ -450,6 +455,24 @@ a { color: var(--speech); }
   $("#topic").addEventListener("change", loadPlan);
 
   $("#start").addEventListener("click", start);
+  $("#pause").addEventListener("click", () => {
+    if (!running || paused) return;
+    if (!rec || typeof rec.pause !== "function") { status("このブラウザは録音の一時停止に対応していません。「このラウンドを終える」を使ってください。", true); return; }
+    try { rec.pause(); } catch (e) { return; }
+    paused = true; cancelAnimationFrame(raf); stopAsr();
+    try { wake && wake.release(); } catch (e) {} wake = null;
+    $("#live-dot").className = "dot-live"; $("#live-text").textContent = "一時停止中"; $("#meter").style.width = "0";
+    status(`一時停止中（残り ${clockText(left)}）。止めている間は録音されません。`); renderTimer();
+  });
+  $("#resume").addEventListener("click", async () => {
+    if (!paused) return;
+    try { rec.resume(); } catch (e) {}
+    paused = false; last = performance.now(); lastLevelT = last; silentFor = 0;
+    startAsr(true);
+    try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (e) {}
+    status(mode === "432" ? `ラウンド${round + 1}：続きから話して。` : "続きから話して。");
+    raf = requestAnimationFrame(tick); renderTimer();
+  });
   $("#stop").addEventListener("click", () => { left = 0; beep(); stopNow(); });
   $("#next").addEventListener("click", () => { round = Math.min(plan.length - 1, round + 1); left = plan[round]; status(`ラウンド${round + 1}：準備ができたら「録音して開始」。`); renderTimer(); });
   function resetAll() {
