@@ -357,6 +357,11 @@ audio { width: 100%; }
     <section>
       <h2><span class="step">STEP 2</span>録音して、文字起こしを貼る</h2>
       <div class="panel">
+        <details id="m-paste-box">
+          <summary>Recorder の結果を貼る（1回だけモード）</summary>
+          <textarea id="m-paste" placeholder="【Fluency Lab Recorder 結果】…" style="margin-top:8px"></textarea>
+          <div class="row"><button class="ghost" id="m-paste-go">読み込む</button></div>
+        </details>
         <p class="hint">スマホのボイスメモで録音 → その音声ファイルをここで選択。文字起こし（ボイスメモの文字起こし機能や音声入力）は下の欄に<strong>直さずに</strong>貼ってください。</p>
         <div class="row">
           <span class="file"><input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" aria-label="録音ファイルを選ぶ">録音ファイルを選ぶ</span>
@@ -512,12 +517,19 @@ audio { width: 100%; }
       <div class="panel">
         <p class="hint">各ラウンドをボイスメモで録って、ここに入れてください。文字起こしも貼ると、速さ・ラン長・内容の維持まで出ます。マイクで直接録音しながら測るなら <a href="https://soma0223.github.io/E-English/recorder/" target="_blank" rel="noopener" style="color:var(--speech)">Recorder</a>（保存した音声をここに入れると Claude の比較も使えます）。</p>
         <div class="row"><button class="quiet" id="mic-test">このページでマイクが使えるか試す</button><span class="hint" id="mic-res"></span></div>
+        <details id="r-paste-box">
+          <summary>Recorder の結果を貼る</summary>
+          <p class="hint" style="margin-top:8px">Recorder の「Fluency Lab に送る」（または「結果をコピー」）でコピーした文章を、そのまま貼ってください。</p>
+          <textarea id="r-paste" placeholder="【Fluency Lab Recorder 結果】…"></textarea>
+          <div class="row"><button class="ghost" id="r-paste-go">読み込む</button></div>
+        </details>
         <div class="two" id="r-inputs"></div>
         <div class="map-wrap"><table class="map cmp" id="r-table"></table></div>
         <div class="notes" id="r-notes"></div>
         <div class="row">
-          <button id="r-ai" disabled>Claude に比べてもらう</button>
+          <button id="r-ai" disabled>Claude に分析してもらう</button>
           <button class="ghost" id="r-save" disabled>記録する</button>
+          <button class="ghost" id="r-to-chunks" hidden>チャンク帳に追加</button>
           <button class="quiet" id="r-clear">入力をクリア</button>
         </div>
         <p class="status" id="r-status" role="status"></p>
@@ -905,6 +917,39 @@ audio { width: 100%; }
     return { words: words.length, fillers: fillers + youKnow, repeats, jaChunks };
   }
 
+  // ---- parse text copied from Fluency Lab Recorder ----
+  function parseRecorder(txt) {
+    const num = (re, b) => { const m = b.match(re); return m ? Number(m[1]) : null; };
+    const topicLine = (txt.match(/お題:\s*([^\n（]+)/) || [])[1] || "";
+    const takes = txt.split(/^■\s*/m).slice(1).map((b) => {
+      const r = {
+        total: num(/長さ\s*([\d.]+)秒/, b), words: num(/単語数\s*(\d+)/, b), wpm: num(/話す速さ\s*([\d.]+)/, b), art: num(/調音速度\s*([\d.]+)/, b),
+        mlr: num(/平均ラン長\s*([\d.]+)/, b), pauses: num(/沈黙\s*(\d+)回/, b), pausesPerMin: num(/（([\d.]+)回\/分）/, b),
+        longPauses: num(/1秒以上\s*(\d+)回/, b), maxPause: num(/最長\s*([\d.]+)秒/, b), repeatsN: num(/言い直し\s*(\d+)回/, b),
+      };
+      const tm = b.match(/文字起こし:\s*([\s\S]*)$/); r.transcript = tm ? tm[1].trim() : ""; if (r.transcript === "(なし)") r.transcript = "";
+      r.longPerMin = r.longPauses != null && r.total ? r.longPauses / (r.total / 60) : null;
+      if (r.art && r.words) r.phonation = r.words / r.art * 60;
+      r.runs = r.pauses != null ? r.pauses + 1 : null;
+      r.hasAudio = true;
+      return r;
+    }).filter((r) => r.total != null || r.transcript);
+    return { topicEn: topicLine.trim(), takes };
+  }
+  // recompute word-based metrics when the transcript is corrected, keeping audio-based ones
+  function withText(base, text) {
+    const t = analyzeText(text);
+    if (text.trim() === (base.transcript || "").trim() && base.words != null) {
+      // unchanged transcript: trust the numbers Recorder measured
+      return Object.assign({}, base, { transcript: text.trim(), fillers: t.fillers, jaChunks: t.jaChunks, repeatsList: t.repeats });
+    }
+    const r = Object.assign({}, base, { transcript: text.trim(), words: t.words, fillers: t.fillers, jaChunks: t.jaChunks, repeatsList: t.repeats });
+    if (base.total && t.words) r.wpm = t.words / (base.total / 60);
+    if (base.phonation && t.words) r.art = t.words / (base.phonation / 60);
+    if (base.runs && t.words) r.mlr = t.words / base.runs;
+    return r;
+  }
+
   function compute(a, t, manualSec) {
     const r = { words: t.words, fillers: t.fillers, repeats: t.repeats, jaChunks: t.jaChunks, hasAudio: !!a };
     if (a && a.runs.length) {
@@ -995,6 +1040,19 @@ audio { width: 100%; }
   }
   window.addEventListener("resize", () => { if (current) drawTimeline(currentAudio, current); });
 
+  $("#m-paste-go").addEventListener("click", () => {
+    const res = parseRecorder($("#m-paste").value), base = res.takes[0];
+    if (!base) { setStatus("Recorder の結果として読み込めませんでした。コピーした文章をそのまま貼ってください。", true); return; }
+    const tp = TOPICS.find((t) => res.topicEn && t.en.startsWith(res.topicEn.slice(0, 20)));
+    if (tp) { sel.value = tp.id; showTopic(); }
+    const r = withText(base, base.transcript); r.repeats = r.repeatsList;
+    r.topic = topicOf().ja; r.topicEn = topicOf().en;
+    $("#transcript").value = base.transcript; store("fl-draft", base.transcript);
+    audioRes = null; $("#filename").textContent = "Recorder から";
+    renderResult(r, null, false);
+    $("#m-paste").value = ""; $("#m-paste-box").open = false;
+    setStatus(res.takes.length > 1 ? "4/3/2 の結果なので、最初のラウンドだけ読み込みました。3ラウンドを比べるときは 4/3/2 タブに貼ってください。" : "Recorder の結果を読み込みました。");
+  });
   $("#analyze").addEventListener("click", () => {
     const text = $("#transcript").value.trim();
     const manual = parseFloat($("#secs").value);
@@ -1431,6 +1489,7 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
 
   function rCompute(i) {
     const x = RN[i];
+    if (x.base) { const r = withText(x.base, x.text); r.repeats = r.repeatsList.length; x.r = r; return; }
     if (!x.audio && !x.text.trim()) { x.r = null; return; }
     const t = analyzeText(x.text);
     const r = compute(x.audio, t, 0);
@@ -1483,7 +1542,7 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
   $("#r-inputs").addEventListener("change", async (e) => {
     const el = e.target; if (!el.id || !el.id.startsWith("r-file-")) return;
     const i = Number(el.dataset.i), f = el.files && el.files[0];
-    RN[i].audio = null; $("#r-name-" + i).textContent = f ? "解析中…" : "未選択";
+    RN[i].audio = null; RN[i].base = null; $("#r-name-" + i).textContent = f ? "解析中…" : "未選択";
     if (f) {
       try { RN[i].audio = await analyzeAudio(f); RN[i].file = f.name; $("#r-name-" + i).textContent = `${f.name}（${RN[i].audio.duration.toFixed(0)}秒）`; }
       catch (err) { $("#r-name-" + i).textContent = "読み込めませんでした。m4a / mp3 / wav で試してください。"; }
@@ -1497,23 +1556,41 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     clearTimeout(rTimer); rTimer = setTimeout(() => { rCompute(i); rRender(); }, 350);
   });
   $("#r-clear").addEventListener("click", () => {
-    RN.forEach((x, i) => { x.audio = null; x.text = ""; x.r = null; $("#r-file-" + i).value = ""; $("#r-text-" + i).value = ""; $("#r-name-" + i).textContent = "未選択"; });
-    $("#r-feedback").hidden = true; rFeedback = ""; $("#r-status").textContent = ""; rRender();
+    RN.forEach((x, i) => { x.audio = null; x.base = null; x.text = ""; x.r = null; $("#r-file-" + i).value = ""; $("#r-text-" + i).value = ""; $("#r-name-" + i).textContent = "未選択"; });
+    $("#r-feedback").hidden = true; rFeedback = ""; $("#r-status").textContent = ""; $("#r-to-chunks").hidden = true; rRender();
+  });
+  $("#r-paste-go").addEventListener("click", () => {
+    const res = parseRecorder($("#r-paste").value);
+    if (!res.takes.length) { $("#r-status").textContent = "Recorder の結果として読み込めませんでした。コピーした文章をそのまま貼ってください。"; return; }
+    const tp = TOPICS.find((t) => res.topicEn && t.en.startsWith(res.topicEn.slice(0, 20)));
+    if (tp && tp.id !== "432") { tSel.value = tp.id; showT(); loadPlan(); }
+    RN.forEach((x, i) => {
+      const r = res.takes[i];
+      x.audio = null; x.base = r || null; x.text = r ? r.transcript : ""; x.r = null;
+      $("#r-text-" + i).value = x.text; $("#r-name-" + i).textContent = r ? `Recorder から（${fmt(r.total)}秒）` : "未選択";
+      rCompute(i);
+    });
+    $("#r-paste").value = ""; $("#r-paste-box").open = false; $("#r-feedback").hidden = true; rFeedback = "";
+    $("#r-status").textContent = `${res.takes.length}ラウンド分を読み込みました。文字起こしの聞き間違いを直すと、数字も計算し直されます。`;
+    rRender();
   });
 
   let rFeedback = "";
   $("#r-ai").addEventListener("click", async () => {
     if (!sample) return;
-    $("#r-ai").disabled = true; $("#r-status").textContent = "Claude が3ラウンドを比べています…";
+    $("#r-ai").disabled = true; $("#r-to-chunks").hidden = true; $("#r-status").textContent = "Claude が3ラウンドを分析しています…（30秒ほど）";
     const tName = (TOPICS.find((x) => x.id === tSel.value) || {}).en || "";
     const body = RN.map((x, i) => x.r ? `■ ラウンド${i + 1}（${ROUNDS[i] / 60}分）\n${metricsText(Object.assign({}, x.r, { repeats: x.r.repeatsList || [] }))}\n文字起こし:\n"""\n${x.r.transcript || "(なし)"}\n"""` : `■ ラウンド${i + 1}: 記録なし`).join("\n\n");
     const prompt = `あなたは第二言語習得の研究に詳しいスピーキングコーチです。学習者は日本の大学生で CEFR B1、目標は Google の英語面接。
-学習者は Nation の 4/3/2 トレーニング（同じ内容を 4分→3分→2分 で3回話す）を行いました。各ラウンドの指標と文字起こし（音声入力なので句読点は不正確。誤りとして扱わない）を比べて、日本語で次の形式で答えてください。見出しは【】で囲んで単独の行に置き、Markdown 記号（#, *, |, -）は使わないこと。全体で400字程度。
-【流暢さの変化】速さ・沈黙・ラン長がどう変わったか。数字に触れる。
-【内容の維持】R1 の要素が R3 まで残っているか。抜けた要素があれば具体的に。
-【定着してきた言い回し】ラウンドを重ねて安定して言えるようになった表現を2〜3個（英語のまま）。
-【まだ残っている誤り】R3 にも残る誤りを最大3個。「× → ○」の形式。
-【次回の4/3/2で意識すること】1つだけ。
+学習者は Nation の 4/3/2 トレーニング（同じ内容を 4分→3分→2分 で3回話す）を行いました。各ラウンドの指標と文字起こしを比べて、日本語で次の形式で答えてください。見出しは【】で囲んで単独の行に置き、Markdown 記号（#, *, |, -）は使わないこと。
+文字起こしは自動音声認識なので、句読点や大文字は誤りとして扱わないこと。聞き間違いと思われる語は、文脈から本人が言いたかった語を推測して扱うこと。ただし、同じ語が複数ラウンドで同じように別の語に聞き取られている場合は、発音の手がかりとして【発音のヒント】で指摘すること（例：worked が walked になる → ɜːr と ɔː の区別）。
+【流暢さの変化】話す速さ・調音速度・1秒以上の沈黙・平均ラン長が R1→R3 でどう変わったか。数字を使って2〜3文。改善しなかった指標と、その意味（例：ラン長が短い＝1語ずつ組み立てている）も書く。
+【内容の維持】R1 の話の骨組みを箇条ではなく1〜2文で要約し、R3 までに抜けた要素を具体的に。
+【発音のヒント】複数ラウンドで一貫した聞き間違いがあれば最大2個。「言いたかった語 → 聞き取られた語：原因と練習のコツ」の形式。なければ「特になし」。
+【添削】R3 を中心に重要な誤りを最大8個。1行に1つ「× 原文 → ○ 修正　／ 理由」。時制のゆれなど繰り返し出る誤りはまとめて指摘する。
+【覚えるチャンク】この話で使える、かたまりの表現を5〜7個。1行に1つ「英語の表現：日本語の意味と使いどころ」（区切りは全角コロン）。
+【模範例】R3 と同じ内容を B1+〜B2 の自然な話し言葉で、80〜120語。
+【次回の目標】次の 4/3/2 の R3 で目指す数値（話す速さ・平均ラン長）を今回の値から現実的に1つずつと、意識することを1つ。
 
 お題: ${tName}
 
@@ -1521,10 +1598,18 @@ ${body}`;
     try {
       const res = await sample(prompt, { cache: false, onText: ({ text }) => { rFeedback = text; showRFeedback(text); } });
       rFeedback = res.text; showRFeedback(res.text);
-      $("#r-status").textContent = "比較が届きました。「記録する」で一緒に保存できます。";
+      $("#r-status").textContent = "分析が届きました。「記録する」で一緒に保存できます。";
+      const cs = parseChunks(res.text);
+      if (cs.length && db) { const b = $("#r-to-chunks"); b.hidden = false; b.disabled = false; b.textContent = `チャンク帳に追加（${cs.length}個）`; }
     } catch (e) {
       $("#r-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってからもう一度。" : "比較を取得できませんでした。もう一度押してください。";
     } finally { rRender(); }
+  });
+  $("#r-to-chunks").addEventListener("click", async () => {
+    const cs = parseChunks(rFeedback); if (!cs.length || !db) return;
+    const b = $("#r-to-chunks"); b.disabled = true;
+    try { for (const c of cs) await addChunk(c.en, c.ja, `4/3/2（${ymd(new Date())}）の分析から`, "添削から"); b.textContent = `${cs.length}個を追加しました`; }
+    catch (e) { b.disabled = false; $("#r-status").textContent = "チャンク帳に追加できませんでした。"; }
   });
   function showRFeedback(text) {
     const box = $("#r-feedback"); box.hidden = false;

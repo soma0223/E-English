@@ -165,10 +165,10 @@ a { color: var(--speech); }
       <div class="map-wrap"><table class="cmp" id="table"></table></div>
       <div class="notes" id="notes"></div>
       <div class="row">
-        <button id="copy" disabled>結果をコピー</button>
-        <a href="https://claude.ai/artifact/JXknxLAF7rD6etK1G393nh#timer" target="_blank" rel="noopener" id="open-lab">Fluency Lab を開く</a>
+        <button id="send" disabled>Fluency Lab に送る</button>
+        <button class="ghost" id="copy" disabled>結果をコピー</button>
       </div>
-      <p class="hint">Claude の比較コメントがほしいときは、各ラウンドの「音声を保存」→ Fluency Lab の 4/3/2 タブ（1回だけの場合は「測る」）に入れて、文字起こしを貼ってください。コピーした結果を Claude Code のチャットに貼っても分析できます。</p>
+      <p class="hint">「Fluency Lab に送る」を押すと結果がコピーされて Fluency Lab が開きます。4/3/2 タブ（1回だけのときは「測る」タブ）の「Recorder の結果を貼る」に貼ると、Claude の分析と記録が使えます。送る前に、文字起こしの聞き間違いを直しておくと分析が正確になります。</p>
       <p class="status" id="copy-status" role="status"></p>
     </div>
   </section>
@@ -533,7 +533,7 @@ a { color: var(--speech); }
     if (n > 1 && a && c && a.pausesPerMin != null && c.pausesPerMin != null) notes.push(`沈黙の頻度：${fmt(a.pausesPerMin, 1)} → ${fmt(c.pausesPerMin, 1)} 回/分。`);
     if (n === 1 && a && a.wpm != null && a.art != null && a.art - a.wpm > 45) notes.push("話している間の速さに比べて全体の速さが大きく落ちています。次の文を組み立てる時間がボトルネックです。");
     $("#notes").innerHTML = notes.map((t) => `<div>${esc(t)}</div>`).join("");
-    $("#copy").disabled = !rs.some(Boolean);
+    $("#copy").disabled = !rs.some(Boolean); $("#send").disabled = !rs.some(Boolean);
   }
   let txTimer = 0;
   $("#takes").addEventListener("input", (e) => {
@@ -558,6 +558,14 @@ a { color: var(--speech); }
     const txt = resultText();
     try { await navigator.clipboard.writeText(txt); $("#copy-status").textContent = "コピーしました。"; }
     catch (e) { $("#copy-status").textContent = "コピーできませんでした。"; }
+  });
+
+  $("#send").addEventListener("click", async () => {
+    const txt = resultText(), url = "https://claude.ai/artifact/JXknxLAF7rD6etK1G393nh#" + (mode === "432" ? "timer" : "measure");
+    let ok = true;
+    try { await navigator.clipboard.writeText(txt); } catch (e) { ok = false; }
+    $("#copy-status").textContent = ok ? "コピーしました。Fluency Lab で「Recorder の結果を貼る」を開いて貼ってください。" : "コピーできませんでした。「結果をコピー」を試してください。";
+    if (ok) window.open(url, "_blank", "noopener");
   });
 
   // local history
