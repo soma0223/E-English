@@ -268,6 +268,19 @@ table.cmp .flat { color: var(--muted); }
 .links { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .links li { display: flex; flex-direction: column; }
 .links a { color: var(--speech); font-weight: 700; }
+.gaps { display: flex; flex-direction: column; gap: 10px; }
+.gap { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gap .q { font-weight: 700; }
+.gap .opt { display: flex; gap: 8px; align-items: flex-start; border-top: 1px dashed var(--line); padding-top: 8px; }
+.gap .opt > div { flex: 1; min-width: 0; }
+.gap .en { font-family: var(--f-data); color: var(--speech); overflow-wrap: anywhere; }
+.gap .nu { font-size: .78rem; color: var(--muted); }
+.gap .lv { font-size: .68rem; font-weight: 700; color: var(--pause); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; margin-right: 6px; }
+.gap .warn { font-size: .8rem; color: var(--long); }
+.gap .ex { font-size: .82rem; color: var(--muted); }
+.gap .ex b { font-family: var(--f-data); color: var(--ink); font-weight: 400; }
+.gap .acts { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; align-items: flex-end; }
+.gap .acts button { white-space: nowrap; }
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -403,6 +416,7 @@ audio { width: 100%; }
           <button class="ghost" id="to-chunks" hidden>チャンク帳に追加</button>
         </div>
         <p class="status" id="ai-status" role="status"></p>
+        <p class="hint">英語にできなかった表現は、<a href="#chunks" style="color:var(--speech)">チャンクタブの「言えなかった表現を英語に」</a>に日本語で書くと、言い方が出てきてチャンク帳に登録できます。</p>
         <div class="feedback" id="feedback" hidden></div>
       </div>
     </section>
@@ -423,6 +437,21 @@ audio { width: 100%; }
   <!-- ================= CHUNKS ================= -->
   <div class="view" id="v-chunks" hidden>
     <div class="skills-line">効く力 <span class="tag">語彙・表現</span><span class="tag">正確さ</span><span class="tag">流暢さ</span>　丸ごと覚えたかたまりは、文を組み立てる手間を省く（定型表現・間隔反復）</div>
+    <section>
+      <h2><span class="step">SAY IT</span>言えなかった表現を英語に</h2>
+      <div class="panel">
+        <p class="hint">話していて英語にできなかったことを、日本語で書いてください。1行に1つ、まとめて何個でも。気づいた直後に正しい言い方を知ると、いちばん記憶に残ります。</p>
+        <textarea id="g-ja" placeholder="例&#10;どこかで見たことある顔だった&#10;もしかして〇〇中学だった？&#10;裏方の仕事"></textarea>
+        <input type="text" id="g-ctx" placeholder="場面（任意）：例 バイト先の話、面接、友だちとの雑談">
+        <div class="row"><button id="g-go">英語での言い方を見る</button><p class="status" id="g-status" role="status"></p></div>
+        <div class="gaps" id="g-out"></div>
+        <details id="g-hist-box">
+          <summary>これまでに調べた表現</summary>
+          <ul class="clist" id="g-hist" style="margin-top:8px"></ul>
+        </details>
+      </div>
+    </section>
+
     <section>
       <h2><span class="step">REVIEW</span>今日の復習 <span class="hint" id="due-count"></span></h2>
       <div class="panel">
@@ -462,6 +491,7 @@ audio { width: 100%; }
           <select id="c-src" style="width:auto">
             <option value="添削から">添削から（言えなかった表現）</option>
             <option value="素材から">素材から（シャドーイング・多聴・多読）</option>
+            <option value="言えなかった表現">言えなかった表現</option>
             <option value="その他">その他</option>
           </select>
         </div>
@@ -1386,6 +1416,84 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     b.disabled = true;
     try { await db.doc("chunks/" + b.dataset.del).delete(); } catch (err) { b.disabled = false; }
   });
+
+  // ================= SAY IT: Japanese → English for expressions you couldn't say =================
+  let gaps = [], lastGapOut = [];
+  function gapCard(g, gi) {
+    const opts = (g.options || []).map((o, oi) => {
+      const key = `${gi}-${oi}`, done = (g.added || []).includes(oi);
+      return `<div class="opt"><div><div class="en">${o.level ? `<span class="lv">${esc(o.level)}</span>` : ""}${esc(o.en)}</div><div class="nu">${esc(o.nuance || "")}</div></div>
+        <div class="acts">${speakBtn(o.en)}<button class="quiet" data-gadd="${key}" ${db && !done ? "" : "disabled"}>${done ? "登録済み" : "チャンク帳へ"}</button></div></div>`;
+    }).join("");
+    return `<div class="gap"><div class="q">「${esc(g.ja)}」</div>${opts}
+      ${g.trap ? `<div class="warn">⚠ ${esc(g.trap)}</div>` : ""}
+      ${g.example && g.example.en ? `<div class="ex">例：<b>${esc(g.example.en)}</b><br>${esc(g.example.ja || "")}</div>` : ""}</div>`;
+  }
+  function renderGapOut() { $("#g-out").innerHTML = lastGapOut.map((g, i) => gapCard(g, i)).join(""); }
+  $("#g-go").addEventListener("click", async () => {
+    const lines = $("#g-ja").value.split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 10);
+    if (!lines.length) { $("#g-status").textContent = "日本語で1つ以上書いてください。"; return; }
+    if (!sample) { $("#g-status").textContent = "この表示では Claude に聞けません。"; return; }
+    const ctx = $("#g-ctx").value.trim();
+    const prompt = `あなたは日本人英語学習者のための英語コーチです。学習者は慶應義塾大学の経済学部の学生で CEFR B1、来年 Google の英語面接を受けます。東京ディズニーシーでアルバイトをしています。
+学習者が話している途中で英語にできなかった日本語の表現が、下に1行ずつ並んでいます。${ctx ? `場面：${ctx}。` : ""}
+それぞれについて、話し言葉で実際に使える英語の言い方を2〜3個出してください。
+1個目は今の B1 の学習者がすぐ言えるシンプルな言い方、2個目はネイティブがよく使う自然な言い方、場面に合えば3個目に面接や丁寧な場面向けの言い方。日本語の直訳は避ける。
+日本人がやりがちな直訳の誤りがあれば trap に1文で（なければ空文字）。
+JSON の配列だけを返すこと。形式：
+[{"ja": "元の日本語", "options": [{"en": "英語", "level": "シンプル" | "自然" | "丁寧", "nuance": "ニュアンスと使いどころ（日本語で短く）"}], "trap": "直訳の誤りの注意（日本語）", "example": {"en": "その表現を使った短い例文", "ja": "訳"}}]
+
+表現：
+${lines.map((l, i) => `${i + 1}. ${l}`).join("\n")}`;
+    $("#g-go").disabled = true; $("#g-status").textContent = "Claude が考えています…";
+    try {
+      const v = await sample.json(prompt, { cache: false });
+      const out = (Array.isArray(v) ? v : []).filter((g) => g && Array.isArray(g.options) && g.options.length).slice(0, 10).map((g, i) => ({
+        ja: String(g.ja || lines[i] || "").slice(0, 200),
+        options: g.options.slice(0, 3).map((o) => ({ en: String(o.en || "").slice(0, 200), level: String(o.level || "").slice(0, 10), nuance: String(o.nuance || "").slice(0, 200) })).filter((o) => o.en),
+        trap: String(g.trap || "").slice(0, 200),
+        example: g.example ? { en: String(g.example.en || "").slice(0, 300), ja: String(g.example.ja || "").slice(0, 300) } : null,
+        added: [],
+      }));
+      if (!out.length) throw new Error("empty");
+      lastGapOut = out; renderGapOut();
+      $("#g-ja").value = ""; $("#g-status").textContent = "「チャンク帳へ」で、覚えたい言い方を登録してください。1つの表現につき1〜2個がおすすめ。";
+      if (db) {
+        for (const g of out) { try { const ref = await db.collection("gaps").add(Object.assign({ createdAt: Date.now(), context: ctx }, g)); g.id = ref.id; } catch (e) {} }
+      }
+    } catch (e) {
+      $("#g-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってからもう一度。" : "英語の言い方を出せませんでした。もう一度押してください。";
+    } finally { $("#g-go").disabled = false; }
+  });
+  async function addFromGap(g, oi, rerender) {
+    const o = g.options[oi]; if (!o || !db) return;
+    await addChunk(o.en, `${g.ja}${o.nuance ? `（${o.nuance}）` : ""}`, "言えなかった表現から", "言えなかった表現");
+    g.added = Array.from(new Set((g.added || []).concat(oi)));
+    if (g.id) db.doc("gaps/" + g.id).update({ added: g.added }).catch(() => {});
+    rerender();
+  }
+  $("#g-out").addEventListener("click", async (e) => {
+    const sp = e.target.closest("button[data-speak]"); if (sp) { speak(sp.dataset.speak); return; }
+    const b = e.target.closest("button[data-gadd]"); if (!b) return;
+    const [gi, oi] = b.dataset.gadd.split("-").map(Number); b.disabled = true;
+    try { await addFromGap(lastGapOut[gi], oi, renderGapOut); } catch (err) { b.disabled = false; $("#g-status").textContent = "登録できませんでした。"; }
+  });
+  function renderGapHist() {
+    $("#g-hist-box").hidden = !gaps.length;
+    $("#g-hist").innerHTML = gaps.slice(0, 40).map((g, gi) => `<li><div><div class="ja">「${esc(g.ja)}」</div>${(g.options || []).map((o, oi) => `<div class="en">${esc(o.en)} ${(g.added || []).includes(oi) ? "✓" : `<button class="quiet" data-hadd="${gi}-${oi}" ${db ? "" : "disabled"}>チャンク帳へ</button>`}</div>`).join("")}</div><div class="due">${new Date(g.createdAt).getMonth() + 1}/${new Date(g.createdAt).getDate()}</div></li>`).join("");
+  }
+  $("#g-hist").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-hadd]"); if (!b) return;
+    const [gi, oi] = b.dataset.hadd.split("-").map(Number); b.disabled = true;
+    try { await addFromGap(gaps[gi], oi, renderGapHist); } catch (err) { b.disabled = false; }
+  });
+  dbReady.push(() => {
+    db.collection("gaps").orderBy("createdAt", "desc").limit(60).onSnapshot((snap) => {
+      gaps = snap.docs.map((x) => Object.assign({ id: x.id }, JSON.parse(JSON.stringify(x.data() || {}))));
+      renderGapHist();
+    }, () => {});
+  });
+  $("#g-hist-box").hidden = true;
 
   // ================= TIMER 4/3/2 =================
   const tSel = $("#t-topic");
