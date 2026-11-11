@@ -286,6 +286,21 @@ table.cmp .flat { color: var(--muted); }
 #d-list li .ex b { font-family: var(--f-data); font-weight: 400; color: var(--ink); }
 #d-list li.gone { opacity: .45; }
 #d-list .th { font-size: .66rem; font-weight: 700; color: var(--pause); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; margin-right: 6px; }
+.chat { display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 88%; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.msg .b { padding: 10px 12px; border-radius: 12px; overflow-wrap: anywhere; font-size: .95rem; line-height: 1.6; }
+.msg.p { align-self: flex-start; }
+.msg.p .b { background: var(--bg); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.l { align-self: flex-end; }
+.msg.l .b { background: var(--speech-soft); border-bottom-right-radius: 4px; }
+.msg .who { font-size: .7rem; color: var(--muted); }
+.msg.l .who { text-align: right; }
+.fb { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; font-size: .84rem; display: flex; flex-direction: column; gap: 4px; }
+.fb .okk { color: var(--speech); font-weight: 700; }
+.fb .fx { font-family: var(--f-data); overflow-wrap: anywhere; }
+.fb .nt { color: var(--muted); }
+.fb .nt s { color: var(--long); }
+.fb .lab { font-size: .68rem; font-weight: 700; color: var(--pause); letter-spacing: .04em; }
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -318,6 +333,7 @@ audio { width: 100%; }
     <a href="#timer" data-v="timer">4/3/2</a>
     <a href="#shadow" data-v="shadow">シャドー</a>
     <a href="#read" data-v="read">多読</a>
+    <a href="#talk" data-v="talk">会話</a>
   </nav>
 
   <!-- ================= TODAY ================= -->
@@ -766,6 +782,37 @@ audio { width: 100%; }
       </div>
     </section>
   </div>
+  <div class="view" id="v-talk" hidden>
+    <div class="skills-line">効く力 <span class="tag">やりとり</span><span class="tag">正確さ</span><span class="tag">流暢さ</span>　会話の中で直されると身につきやすい（インタラクション仮説・訂正フィードバック）</div>
+    <section>
+      <h2><span class="step">TALK</span>Claude と英語で会話する</h2>
+      <div class="panel">
+        <div class="two">
+          <div><label for="k-scene">場面</label><select id="k-scene"></select></div>
+          <div><label for="k-fb">添削の出し方</label>
+            <select id="k-fb"><option value="now">発言のたびに見る</option><option value="later">会話のあとでまとめて見る</option></select></div>
+        </div>
+        <label class="hint"><input type="checkbox" id="k-voice"> Claude の返事を音声で読み上げる</label>
+        <div class="chat" id="k-chat" aria-live="polite"></div>
+        <textarea id="k-in" placeholder="英語で返事を書く。キーボードのマイクで音声入力すると、話す練習になります。言えない所は日本語のままでOK。"></textarea>
+        <div class="row">
+          <button id="k-send">送る</button>
+          <button class="ghost" id="k-end" disabled>会話を終えて、まとめを見る</button>
+          <button class="quiet" id="k-new">新しい会話</button>
+        </div>
+        <p class="status" id="k-status" role="status"></p>
+        <div class="feedback" id="k-sum" hidden></div>
+        <div class="row"><button class="ghost" id="k-sum-chunks" hidden>チャンク帳に追加</button></div>
+      </div>
+    </section>
+    <section>
+      <h2><span class="step">LOG</span>会話の記録</h2>
+      <div class="panel">
+        <ul class="hist" id="k-hist"></ul>
+        <p class="empty" id="k-hist-empty">まだ記録はありません。会話を終えると、ここに残ります。</p>
+      </div>
+    </section>
+  </div>
 </div>
 
 <script>
@@ -779,13 +826,14 @@ audio { width: 100%; }
   const use = (n) => (window.claude && window.claude.use) ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
 
   // ================= routing =================
-  const VIEWS = ["today", "measure", "chunks", "timer", "shadow", "read"];
+  const VIEWS = ["today", "measure", "chunks", "timer", "shadow", "read", "talk"];
   function route() {
     const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "today";
     VIEWS.forEach((n) => { $("#v-" + n).hidden = n !== v; });
     document.querySelectorAll("nav.tabs a").forEach((a) => { if (a.dataset.v === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (v === "measure" && current) requestAnimationFrame(() => drawTimeline(currentAudio, current));
     if (v === "chunks") { renderCard(); maybeAutoDaily(); }
+    try { const act = document.querySelector('nav.tabs a[aria-current="page"]'), nv = document.querySelector("nav.tabs"); if (act && nv) nv.scrollLeft = Math.max(0, act.offsetLeft - nv.offsetLeft - (nv.clientWidth - act.offsetWidth) / 2); } catch (e) {}
   }
   window.addEventListener("hashchange", route);
 
@@ -811,7 +859,7 @@ audio { width: 100%; }
     { id: "fluency", ja: "4/3/2 トレーニング", sub: "同じ話を 4→3→2 分で", min: 30, link: "#timer", s: [0, 0, 2, 1, 0, 0] },
     { id: "input", ja: "多聴・多読", sub: "映画・YouTube・記事を訳さずに", min: 60, s: [2, 0, 0, 0, 2, 0] },
     { id: "chunks", ja: "チャンク帳の復習", sub: "言えなかった表現を思い出す", min: 30, link: "#chunks", s: [0, 0, 2, 2, 2, 0] },
-    { id: "talk", ja: "人と話す", sub: "オンライン英会話・言語交換・音声モード", min: 30, s: [1, 0, 1, 0, 0, 2] },
+    { id: "talk", ja: "人と話す", sub: "会話タブ・オンライン英会話・言語交換", min: 30, link: "#talk", s: [1, 0, 1, 0, 0, 2] },
     { id: "movie", ja: "映画・ドラマを1本", sub: "英語字幕で", min: 60, weekend: true, s: [2, 1, 0, 0, 2, 0] },
     { id: "interview", ja: "面接シミュレーション", sub: "Why Google・経験の説明", min: 60, weekend: true, s: [0, 0, 2, 1, 1, 2] },
   ];
@@ -2249,11 +2297,146 @@ Return JSON only, with this shape:
   });
   renderReco(); renderReadHist();
 
+  // ================= TALK: conversation with per-message corrections =================
+  const SCENES = [
+    { id: "free", ja: "フリートーク", role: "a friendly conversation partner chatting casually", open: "Hi! How's your day going so far?" },
+    { id: "interview", ja: "Google の面接（行動面接）", role: "a Google interviewer running a behavioral interview. Ask one question at a time, follow up on details (situation, action, result), stay professional and encouraging", open: "Thanks for joining today. To start, could you tell me a little about yourself?" },
+    { id: "guest", ja: "バイト：ゲスト対応", role: "an English-speaking guest at Tokyo DisneySea talking to a cast member who works at a food shop. Ask for help, recommendations and directions", open: "Excuse me, could you help me? I'm looking for a good place to eat with my kids." },
+    { id: "campus", ja: "大学の友だち", role: "an exchange student friend at Keio University chatting about classes, seminars and weekend plans", open: "Hey! Did you finish the assignment for the seminar?" },
+    { id: "story", ja: "昨日の出来事を話す", role: "a curious friend who asks follow-up questions about what the learner did recently", open: "So, what did you do yesterday? Tell me about it." },
+  ];
+  SCENES.forEach((x) => { const o = document.createElement("option"); o.value = x.id; o.textContent = x.ja; $("#k-scene").appendChild(o); });
+  { const v = load("fl-k-scene"); if (v && SCENES.some((x) => x.id === v)) $("#k-scene").value = v;
+    const f = load("fl-k-fb"); if (f === "later" || f === "now") $("#k-fb").value = f;
+    if (load("fl-k-voice") === "1") $("#k-voice").checked = true; }
+  const sceneOf = () => SCENES.find((x) => x.id === $("#k-scene").value) || SCENES[0];
+  let talk = [], talkBusy = false, talkEnded = false, talkSum = "", talks = [];
+  const learnerTurns = () => talk.filter((m) => m.role === "l").length;
+  function saveDraft() { store("fl-k-draft", JSON.stringify({ scene: $("#k-scene").value, talk, ended: talkEnded, sum: talkSum })); }
+  function newTalk() { talk = [{ role: "p", text: sceneOf().open }]; talkEnded = false; talkSum = ""; $("#k-sum").hidden = true; $("#k-sum-chunks").hidden = true; $("#k-status").textContent = ""; saveDraft(); renderTalk(); }
+  function fbHtml(m, i) {
+    const f = m.fb; if (!f) return m.pending ? `<div class="fb"><span class="nt">添削中…</span></div>` : "";
+    if ($("#k-fb").value === "later" && !talkEnded) return `<div class="fb"><span class="nt">添削は会話のあとで見られます。</span></div>`;
+    const notes = (f.notes || []).map((n) => `<div class="nt"><s>${esc(n.wrong)}</s> → <b>${esc(n.right)}</b>　${esc(n.why)}</div>`).join("");
+    return `<div class="fb">
+      ${f.ok ? `<span class="okk">✓ そのまま通じます</span>` : `<span class="lab">直すと</span><div class="fx">${esc(f.corrected)}</div>${notes}`}
+      ${f.natural && f.natural !== f.corrected ? `<span class="lab">もっと自然に</span><div class="fx">${esc(f.natural)}</div>` : ""}
+      ${f.natural ? `<div class="row">${speakBtn(f.natural)}<button class="quiet" data-kadd="${i}" ${db && !m.added ? "" : "disabled"}>${m.added ? "登録済み" : "この言い方をチャンク帳へ"}</button></div>` : ""}
+    </div>`;
+  }
+  function renderTalk() {
+    $("#k-chat").innerHTML = talk.map((m, i) => m.role === "p"
+      ? `<div class="msg p"><span class="who">Claude</span><div class="b">${esc(m.text)}</div><div class="row">${speakBtn(m.text)}</div></div>`
+      : `<div class="msg l"><span class="who">あなた</span><div class="b">${esc(m.text)}</div>${fbHtml(m, i)}</div>`).join("") + (talkBusy ? `<div class="msg p"><div class="b">…</div></div>` : "");
+    $("#k-end").disabled = talkBusy || talkEnded || learnerTurns() < 2;
+    $("#k-send").disabled = talkBusy || talkEnded || !sample;
+    $("#k-in").disabled = talkEnded;
+    if (!sample) $("#k-status").textContent = "この表示では Claude と会話できません。";
+  }
+  $("#k-scene").addEventListener("change", () => { store("fl-k-scene", $("#k-scene").value); if (learnerTurns() === 0) newTalk(); else $("#k-status").textContent = "場面は「新しい会話」から変わります。"; });
+  $("#k-fb").addEventListener("change", () => { store("fl-k-fb", $("#k-fb").value); renderTalk(); });
+  $("#k-voice").addEventListener("change", () => store("fl-k-voice", $("#k-voice").checked ? "1" : "0"));
+  $("#k-new").addEventListener("click", () => {
+    const b = $("#k-new");
+    if (learnerTurns() > 0 && !talkEnded && !b.classList.contains("danger")) { b.classList.replace("quiet", "danger"); b.textContent = "今の会話を消して始める"; setTimeout(() => { b.classList.replace("danger", "quiet"); b.textContent = "新しい会話"; }, 4000); return; }
+    b.classList.remove("danger"); b.classList.add("quiet"); b.textContent = "新しい会話"; newTalk();
+  });
+  const transcriptOf = (upto) => talk.slice(0, upto).map((m) => `${m.role === "p" ? "Partner" : "Learner"}: ${m.text}`).join("\n");
+
+  $("#k-send").addEventListener("click", async () => {
+    const text = $("#k-in").value.trim(); if (!text || talkBusy || !sample || talkEnded) return;
+    const idx = talk.length; talk.push({ role: "l", text, pending: true }); $("#k-in").value = ""; talkBusy = true; $("#k-status").textContent = ""; renderTalk();
+    $("#k-chat").lastElementChild.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const sc = sceneOf();
+    const prompt = `You are an English conversation partner and coach for a Japanese university student: CEFR B1, economics major at Keio University, works part-time at Tokyo DisneySea, preparing for Google's English interview.
+Scene: you are ${sc.role}.
+
+Conversation so far:
+${transcriptOf(idx)}
+
+Learner's latest message:
+"""${text}"""
+
+Do two things.
+1) "reply": answer as the partner in natural spoken English, 1-3 short sentences at CEFR B1+ to B2, reacting to what the learner said, and end with ONE question that keeps the conversation going. Never mention corrections in the reply.
+2) Correct the learner's latest message only. The learner may use voice input, so ignore punctuation and capitalization. If part of the message is in Japanese, show how to say it in English. Judge it as spoken English: do not flag things that are fine in conversation.
+Return JSON only:
+{"reply": string, "ok": boolean (true when there is no real error), "corrected": string (the message with minimal fixes), "natural": string (how a fluent speaker would say the same thing in this scene; may equal corrected), "natural_ja": string (Japanese meaning of natural, short), "notes": [{"wrong": string, "right": string, "why": string (short reason in Japanese)}] (the most important 0-3 points)}`;
+    try {
+      const v = await sample.json(prompt, { cache: false });
+      if (!v || typeof v.reply !== "string") throw new Error("bad");
+      const m = talk[idx]; m.pending = false;
+      m.fb = { ok: !!v.ok, corrected: String(v.corrected || text).slice(0, 600), natural: String(v.natural || "").slice(0, 600), natural_ja: String(v.natural_ja || "").slice(0, 300),
+        notes: (Array.isArray(v.notes) ? v.notes : []).slice(0, 3).map((n) => ({ wrong: String(n.wrong || "").slice(0, 200), right: String(n.right || "").slice(0, 200), why: String(n.why || "").slice(0, 200) })) };
+      talk.push({ role: "p", text: v.reply.slice(0, 800) });
+      if ($("#k-voice").checked) speak(v.reply);
+    } catch (e) {
+      talk.splice(idx, 1); $("#k-in").value = text;
+      $("#k-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってからもう一度送ってください。" : "返事を受け取れませんでした。もう一度「送る」を押してください。";
+    } finally { talkBusy = false; saveDraft(); renderTalk(); const last = $("#k-chat").lastElementChild; if (last) last.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  });
+  $("#k-chat").addEventListener("click", async (e) => {
+    const sp = e.target.closest("button[data-speak]"); if (sp) { speak(sp.dataset.speak); return; }
+    const b = e.target.closest("button[data-kadd]"); if (!b || !db) return;
+    const m = talk[Number(b.dataset.kadd)]; if (!m || !m.fb || m.added) return;
+    b.disabled = true;
+    try { await addChunk(m.fb.natural, m.fb.natural_ja || m.text, `会話（${sceneOf().ja}）から`, "添削から"); m.added = true; saveDraft(); renderTalk(); }
+    catch (err) { b.disabled = false; $("#k-status").textContent = "登録できませんでした。"; }
+  });
+  function showTalkSum(text) { const box = $("#k-sum"); box.hidden = false; box.innerHTML = esc(text).replace(/^\s*【([^】]+)】\s*/gm, "<h4>$1</h4>").replace(/\n{2,}/g, "\n"); }
+  $("#k-end").addEventListener("click", async () => {
+    if (talkBusy || learnerTurns() < 2) return;
+    talkEnded = true; talkBusy = true; renderTalk(); $("#k-status").textContent = "会話のまとめを作っています…";
+    const body = talk.map((m) => m.role === "p" ? `Partner: ${m.text}` : `Learner: ${m.text}${m.fb && !m.fb.ok ? `\n  (corrected: ${m.fb.corrected})` : ""}`).join("\n");
+    const words = talk.filter((m) => m.role === "l").reduce((n, m) => n + (m.text.match(/[A-Za-z']+/g) || []).length, 0);
+    try {
+      if (sample) {
+        const res = await sample(`あなたは第二言語習得の研究に詳しい英会話コーチです。学習者は日本の大学生（CEFR B1、目標は Google の英語面接）。次の英会話（場面：${sceneOf().ja}）を振り返って、日本語で次の形式で答えてください。見出しは【】で囲んで単独の行に置き、Markdown 記号（#, *, |, -）は使わないこと。全体で350字程度＋チャンク。
+【よかった点】具体的な発言を引用して1〜2個。
+【繰り返し出た誤り】同じ種類の誤りをまとめて最大3個。「× → ○　／ 理由」の形式。なければ「特になし」。
+【やりとりの力】質問に十分な長さで答えられたか、自分から話を広げたり質問を返したりできたか。1〜2文。
+【覚えるチャンク】この会話で使えた、かたまりの表現を3〜5個。1行に1つ「英語の表現：日本語の意味と使いどころ」（区切りは全角コロン）。
+【次の会話で意識すること】1つだけ、具体的に。
+
+${body}`, { cache: false, onText: ({ text }) => { talkSum = text; showTalkSum(text); } });
+        talkSum = res.text; showTalkSum(res.text);
+        const cs = parseChunks(talkSum); if (cs.length && db) { const b = $("#k-sum-chunks"); b.hidden = false; b.disabled = false; b.textContent = `チャンク帳に追加（${cs.length}個）`; }
+      }
+    } catch (e) { $("#k-status").textContent = "まとめは作れませんでしたが、会話と添削は記録します。"; }
+    try {
+      if (db) {
+        await db.collection("talks").add({ createdAt: Date.now(), scene: sceneOf().ja, turns: learnerTurns(), words, errors: talk.filter((m) => m.role === "l" && m.fb && !m.fb.ok).length,
+          messages: talk.map((m) => ({ role: m.role, text: m.text.slice(0, 800), fb: m.fb || null })).slice(0, 120), summary: (talkSum || "").slice(0, 6000) });
+        const key = ymd(new Date());
+        if (learnerTurns() >= 6 && !(days[key] && days[key].items && days[key].items.talk)) { setItem(new Date(), "talk", true); $("#k-status").textContent = "記録しました。今日の「人と話す」にチェックを入れました。"; }
+        else $("#k-status").textContent = "記録しました。";
+      }
+    } catch (e) { $("#k-status").textContent = "記録できませんでした。"; }
+    talkBusy = false; saveDraft(); renderTalk();
+  });
+  $("#k-sum-chunks").addEventListener("click", async () => {
+    const cs = parseChunks(talkSum), b = $("#k-sum-chunks"); if (!cs.length || !db) return; b.disabled = true;
+    try { for (const c of cs) await addChunk(c.en, c.ja, `会話（${sceneOf().ja}）のまとめから`, "添削から"); b.textContent = `${cs.length}個を追加しました`; } catch (e) { b.disabled = false; }
+  });
+  function renderTalkHist() {
+    $("#k-hist-empty").hidden = talks.length > 0;
+    $("#k-hist").innerHTML = talks.map((t) => { const d = new Date(t.createdAt); const rate = t.turns ? Math.round((1 - (t.errors || 0) / t.turns) * 100) : 0;
+      return `<li><span>${esc(t.scene || "")}</span><span class="nums">${t.turns}回・${t.words}語<br>そのまま通じた ${rate}%</span><span class="when">${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</span></li>`; }).join("");
+  }
+  dbReady.push(() => {
+    db.collection("talks").orderBy("createdAt", "desc").limit(30).onSnapshot((snap) => { talks = snap.docs.map((x) => x.data()).filter(Boolean); renderTalkHist(); }, () => {});
+  });
+  (function restoreTalk() {
+    try { const d = JSON.parse(load("fl-k-draft") || "null"); if (d && Array.isArray(d.talk) && d.talk.length) { if (SCENES.some((x) => x.id === d.scene)) $("#k-scene").value = d.scene; talk = d.talk.map((m) => Object.assign({}, m, { pending: false })); talkEnded = !!d.ended; talkSum = d.sum || ""; if (talkSum) showTalkSum(talkSum); renderTalk(); return; } } catch (e) {}
+    newTalk();
+  })();
+
   // ================= capabilities =================
   use("sample").then((s) => {
     sample = s;
     if (current && $("#sample-banner").hidden) $("#ai").disabled = !sample || !current.words;
     if (!s) $("#ai").title = "この表示では Claude の添削は使えません";
+    try { renderTalk(); } catch (e) {}
     if (location.hash === "#chunks") { try { maybeAutoDaily(); renderDaily(); } catch (e) {} }
     rRender();
   });
