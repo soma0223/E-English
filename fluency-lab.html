@@ -281,6 +281,11 @@ table.cmp .flat { color: var(--muted); }
 .gap .ex b { font-family: var(--f-data); color: var(--ink); font-weight: 400; }
 .gap .acts { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; align-items: flex-end; }
 .gap .acts button { white-space: nowrap; }
+.d-themes { gap: 12px; }
+#d-list li .ex { font-size: .78rem; color: var(--muted); }
+#d-list li .ex b { font-family: var(--f-data); font-weight: 400; color: var(--ink); }
+#d-list li.gone { opacity: .45; }
+#d-list .th { font-size: .66rem; font-weight: 700; color: var(--pause); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; margin-right: 6px; }
 /* shadow */
 audio { width: 100%; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -437,6 +442,29 @@ audio { width: 100%; }
   <!-- ================= CHUNKS ================= -->
   <div class="view" id="v-chunks" hidden>
     <div class="skills-line">効く力 <span class="tag">語彙・表現</span><span class="tag">正確さ</span><span class="tag">流暢さ</span>　丸ごと覚えたかたまりは、文を組み立てる手間を省く（定型表現・間隔反復）</div>
+    <section>
+      <h2><span class="step">TODAY</span>今日の新しい表現 <span class="hint" id="d-count"></span></h2>
+      <div class="panel">
+        <p class="hint">Claude があなたのレベルと目標に合わせて、毎日新しい表現を用意して、チャンク帳に入れます。いらないものは「いらない」で外してください。</p>
+        <div class="row">
+          <label for="d-n" class="hint">1日の数</label>
+          <select id="d-n" style="width:auto"><option value="5">5個</option><option value="7" selected>7個</option><option value="10">10個</option></select>
+          <label for="d-lv" class="hint">レベル</label>
+          <select id="d-lv" style="width:auto"><option value="B1">B1</option><option value="B1+" selected>B1+（おすすめ）</option><option value="B2">B2</option></select>
+        </div>
+        <div class="row d-themes" id="d-themes">
+          <span class="hint">テーマ</span>
+          <label class="hint"><input type="checkbox" value="interview" checked> 面接</label>
+          <label class="hint"><input type="checkbox" value="job" checked> バイト（ディズニー）</label>
+          <label class="hint"><input type="checkbox" value="campus" checked> 大学生活</label>
+          <label class="hint"><input type="checkbox" value="daily" checked> 日常会話</label>
+        </div>
+        <label class="hint"><input type="checkbox" id="d-auto" checked> チャンクタブを開いたら、その日の分を自動で作る</label>
+        <div class="row"><button id="d-gen">今日の表現を作る</button><p class="status" id="d-status" role="status"></p></div>
+        <ul class="clist" id="d-list"></ul>
+      </div>
+    </section>
+
     <section>
       <h2><span class="step">SAY IT</span>言えなかった表現を英語に</h2>
       <div class="panel">
@@ -757,7 +785,7 @@ audio { width: 100%; }
     VIEWS.forEach((n) => { $("#v-" + n).hidden = n !== v; });
     document.querySelectorAll("nav.tabs a").forEach((a) => { if (a.dataset.v === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (v === "measure" && current) requestAnimationFrame(() => drawTimeline(currentAudio, current));
-    if (v === "chunks") renderCard();
+    if (v === "chunks") { renderCard(); maybeAutoDaily(); }
   }
   window.addEventListener("hashchange", route);
 
@@ -1387,9 +1415,9 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     try { await db.doc("chunks/" + c.id).update(upd); } catch (err) { $("#c-status").textContent = "復習結果を保存できませんでした。"; }
   });
 
-  async function addChunk(en, ja, note, source) {
-    const doc = { en, ja, note: note || "", source: source || "その他", interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, createdAt: Date.now() };
-    await db.collection("chunks").add(doc);
+  async function addChunk(en, ja, note, source, extra) {
+    const doc = Object.assign({ en, ja, note: note || "", source: source || "その他", interval: 0, ease: 2.5, due: Date.now(), reps: 0, lapses: 0, createdAt: Date.now() }, extra || {});
+    return db.collection("chunks").add(doc);
   }
   $("#c-add").addEventListener("click", async () => {
     const en = $("#c-en").value.trim(), ja = $("#c-ja").value.trim();
@@ -1415,6 +1443,90 @@ JSON の配列だけを返してください。形式: [{"en": "英文", "ja": "
     if (!b.classList.contains("danger")) { b.classList.remove("quiet"); b.classList.add("danger"); b.textContent = "本当に削除"; setTimeout(() => { if (b.isConnected) { b.classList.remove("danger"); b.classList.add("quiet"); b.textContent = "削除"; } }, 4000); return; }
     b.disabled = true;
     try { await db.doc("chunks/" + b.dataset.del).delete(); } catch (err) { b.disabled = false; }
+  });
+
+  // ================= TODAY'S NEW EXPRESSIONS (Claude picks daily chunks) =================
+  const THEMES = { interview: "Google の英語面接（自己紹介、Why Google、経験を STAR で話す、質問への切り返し）", job: "東京ディズニーシーのアルバイト（ゲスト対応、キッチン、同僚との会話、トラブル対応）", campus: "大学生活（ゼミ、授業、サークル、友だちとの予定）", daily: "日常会話（あいづち、気持ちを伝える、雑談を続ける）" };
+  let dailyDocs = [], dailyLoaded = false, dailyBusy = false;
+  const todayDaily = () => dailyDocs.find((d) => d.date === ymd(new Date())) || null;
+  { const n = load("fl-d-n"); if (n) $("#d-n").value = n; const lv = load("fl-d-lv"); if (lv) $("#d-lv").value = lv;
+    const th = load("fl-d-th"); if (th) { const on = th.split(","); document.querySelectorAll("#d-themes input").forEach((i) => { i.checked = on.includes(i.value); }); }
+    if (load("fl-d-auto") === "0") $("#d-auto").checked = false; }
+  $("#d-n").addEventListener("change", () => store("fl-d-n", $("#d-n").value));
+  $("#d-lv").addEventListener("change", () => store("fl-d-lv", $("#d-lv").value));
+  $("#d-themes").addEventListener("change", () => store("fl-d-th", Array.from(document.querySelectorAll("#d-themes input:checked")).map((i) => i.value).join(",")));
+  $("#d-auto").addEventListener("change", () => store("fl-d-auto", $("#d-auto").checked ? "1" : "0"));
+
+  function renderDaily() {
+    const d = todayDaily(), items = d ? (d.items || []) : [];
+    const live = items.filter((x) => !x.removed).length;
+    $("#d-count").textContent = d ? `${live}個` : "";
+    $("#d-gen").textContent = d ? "もう少し追加する" : "今日の表現を作る";
+    $("#d-list").innerHTML = items.map((x, i) => `<li class="${x.removed ? "gone" : ""}"><div><div class="en">${x.theme ? `<span class="th">${esc(x.theme)}</span>` : ""}${esc(x.en)}</div><div class="ja">${esc(x.ja)}</div>${x.example && x.example.en ? `<div class="ex">例：<b>${esc(x.example.en)}</b>　${esc(x.example.ja || "")}</div>` : ""}</div>
+      <div class="due">${speakBtn(x.en)}<br>${x.removed ? "外しました" : `<button class="quiet" data-drm="${i}" ${db ? "" : "disabled"}>いらない</button>`}</div></li>`).join("");
+  }
+  function maybeAutoDaily() {
+    if (!$("#d-auto").checked || !db || !sample || !chunksLoaded || !dailyLoaded || dailyBusy || todayDaily()) return;
+    const k = "fl-d-tried-" + ymd(new Date()); if (load(k)) return; store(k, "1");
+    genDaily(false);
+  }
+  async function genDaily(more) {
+    if (!db) { $("#d-status").textContent = "この表示では保存できません。"; return; }
+    if (!sample) { $("#d-status").textContent = "この表示では Claude に頼めません。"; return; }
+    const themes = Array.from(document.querySelectorAll("#d-themes input:checked")).map((i) => i.value);
+    if (!themes.length) { $("#d-status").textContent = "テーマを1つ以上選んでください。"; return; }
+    const n = Number($("#d-n").value) || 7, lv = $("#d-lv").value;
+    const known = chunks.map((c) => c.en).concat(dailyDocs.flatMap((d) => (d.items || []).map((x) => x.en))).slice(0, 300);
+    const weak = chunks.filter((c) => (c.lapses || 0) > 0).map((c) => c.en).slice(0, 8);
+    const prompt = `あなたは日本人英語学習者のための英語コーチです。学習者は慶應義塾大学の経済学部の学生で、今は CEFR B1、目標は B2〜C1 と来年の Google の英語面接。東京ディズニーシーでアルバイトをしています。
+今日覚える、話し言葉の英語表現（チャンク）を ${n} 個選んでください。レベルは CEFR ${lv}（今より少しだけ上）。
+条件：
+・実際の会話で頻繁に使う、かたまりの表現（句動詞、決まり文句、文の型、あいづちなど）。単語1語だけは不可。難しい慣用句や古い言い回しは避ける。
+・テーマは次から、できるだけ均等に：${themes.map((t) => THEMES[t]).join(" / ")}
+・次の表現はもう知っているので出さない（言い換えも避ける）：${known.join(" | ") || "なし"}
+${weak.length ? `・学習者が忘れやすい表現：${weak.join(" | ")}。これと同じ場面で使える、関連する表現を1〜2個含める。\n` : ""}・ja は日本語の意味と使いどころを短く。example は学習者の生活（慶應、ディズニーのバイト、Google 志望）に合わせた例文。
+JSON の配列だけを返すこと：[{"en": "表現", "ja": "意味と使いどころ", "theme": "面接" | "バイト" | "大学" | "日常", "example": {"en": "例文", "ja": "訳"}}]`;
+    dailyBusy = true; $("#d-gen").disabled = true; $("#d-status").textContent = "Claude が今日の表現を選んでいます…（20秒ほど）";
+    try {
+      const v = await sample.json(prompt, { cache: false });
+      const seen = new Set(known.map((x) => x.toLowerCase().trim()));
+      const items = (Array.isArray(v) ? v : []).filter((x) => x && typeof x.en === "string" && x.en.trim() && !seen.has(x.en.toLowerCase().trim())).slice(0, n).map((x) => ({
+        en: x.en.trim().slice(0, 200), ja: String(x.ja || "").slice(0, 200), theme: String(x.theme || "").slice(0, 10),
+        example: x.example ? { en: String(x.example.en || "").slice(0, 300), ja: String(x.example.ja || "").slice(0, 300) } : null,
+      }));
+      if (!items.length) throw new Error("empty");
+      for (const x of items) {
+        try { const ref = await addChunk(x.en, x.ja, `今日の表現（${ymd(new Date())}）`, "今日の表現", x.example && x.example.en ? { examples: [x.example] } : {}); x.chunkId = ref && ref.id; } catch (e) {}
+      }
+      const cur = todayDaily(), key = ymd(new Date());
+      const all = (cur ? cur.items || [] : []).concat(items);
+      await db.doc("daily/" + key).set({ date: key, createdAt: cur ? cur.createdAt : Date.now(), level: lv, items: all });
+      $("#d-status").textContent = `${items.length}個をチャンク帳に入れました。下の「今日の復習」に新規として出てきます。`;
+    } catch (e) {
+      $("#d-status").textContent = e && e.code === "not_granted" ? "Claude の利用が許可されませんでした。" : e && e.code === "rate_limited" ? "混み合っています。少し待ってから「今日の表現を作る」を押してください。" : "表現を用意できませんでした。「今日の表現を作る」を押して、もう一度試してください。";
+    } finally { dailyBusy = false; $("#d-gen").disabled = false; }
+  }
+  $("#d-gen").addEventListener("click", () => genDaily(!!todayDaily()));
+  $("#d-list").addEventListener("click", async (e) => {
+    const sp = e.target.closest("button[data-speak]"); if (sp) { speak(sp.dataset.speak); return; }
+    const b = e.target.closest("button[data-drm]"); if (!b || !db) return;
+    const d = todayDaily(); if (!d) return;
+    const i = Number(b.dataset.drm), x = (d.items || [])[i]; if (!x) return;
+    b.disabled = true;
+    try {
+      const target = x.chunkId ? chunks.find((c) => c.id === x.chunkId) : chunks.find((c) => c.en === x.en && c.source === "今日の表現");
+      if (target) await db.doc("chunks/" + target.id).delete();
+      const items = (d.items || []).map((y, j) => j === i ? Object.assign({}, y, { removed: true }) : y);
+      const { id: _id, ...rest } = d;
+      await db.doc("daily/" + d.date).set(Object.assign(rest, { items }));
+    } catch (err) { b.disabled = false; $("#d-status").textContent = "外せませんでした。"; }
+  });
+  dbReady.push(() => {
+    db.collection("daily").orderBy("createdAt", "desc").limit(14).onSnapshot((snap) => {
+      dailyDocs = snap.docs.map((x) => Object.assign({ id: x.id }, JSON.parse(JSON.stringify(x.data() || {}))));
+      dailyLoaded = true; renderDaily();
+      if (location.hash === "#chunks") maybeAutoDaily();
+    }, () => { $("#d-status").textContent = "今日の表現を読み込めませんでした。"; });
   });
 
   // ================= SAY IT: Japanese → English for expressions you couldn't say =================
@@ -2142,6 +2254,7 @@ Return JSON only, with this shape:
     sample = s;
     if (current && $("#sample-banner").hidden) $("#ai").disabled = !sample || !current.words;
     if (!s) $("#ai").title = "この表示では Claude の添削は使えません";
+    if (location.hash === "#chunks") { try { maybeAutoDaily(); renderDaily(); } catch (e) {} }
     rRender();
   });
 
@@ -2162,6 +2275,7 @@ Return JSON only, with this shape:
     db.collection("chunks").onSnapshot((snap) => {
       chunks = snap.docs.map((x) => Object.assign({ id: x.id }, x.data() || {}));
       chunksLoaded = true; renderCard(); renderChunkList();
+      if (location.hash === "#chunks") maybeAutoDaily();
     }, () => { $("#card").innerHTML = `<p class="empty">チャンク帳を読み込めませんでした。</p>`; });
     dbReady.forEach((f) => { try { f(); } catch (e) {} });
   });
