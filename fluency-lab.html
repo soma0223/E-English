@@ -2375,13 +2375,13 @@ Story so far: ${novel.summary || "(this is the first chapter)"}
 ${tail ? `The previous chapter ended with: "...${tail}"` : ""}
 
 THIS CHAPTER must cover outline point ${n}: ${novel.beats[n - 1]}
-You may invent scenes, dialogue and details freely, but stay consistent with earlier chapters and never contradict the outline. Show, don't summarize: use concrete scenes and natural dialogue. ${n >= total ? "This is the final chapter: give a satisfying ending." : "End with a small hook that makes the reader want tomorrow's chapter."}
+${novel.style ? `Style and voice: ${novel.style}\n` : ""}You may invent scenes, dialogue and details freely, but stay consistent with earlier chapters and never contradict the outline. Write it as real fiction, not as a textbook text: show, don't summarize; build the chapter from one or two concrete scenes with precise sensory details and natural dialogue with subtext; give each character a distinct voice; let something change in every chapter; avoid cliches and never explain the mystery or the theme to the reader. ${n >= total ? "This is the final chapter: give a satisfying ending." : "End with a small hook that makes the reader want tomorrow's chapter."}
 Language: CEFR ${level}. At least 98% of the words must be ones a ${level} learner already knows; common phrasal verbs and natural spoken chunks in dialogue; short to medium sentences; no rare idioms.
 Length: about ${len} words, in short paragraphs.${targets.length ? `\nThe reader is practising these expressions. Use those that fit naturally (exact wording or small grammatical changes), and list the exact strings you used in "used": ${targets.map((t) => `"${t}"`).join(", ")}.` : ""}
 Return JSON only: {"title": string (a short chapter title), "text": string (paragraphs separated by blank lines), "questions": [{"q": string (English question about this chapter), "a": string (short model answer in Japanese)}] (exactly 2), "chunks": [{"en": string (a useful chunk exactly as it appears in the text), "ja": string (Japanese meaning and when to use it)}] (exactly 5), "summary": string (the updated story so far including this chapter, in English, at most 130 words), "used": [string]}`;
-    novelBusy = true; renderNovel(); $("#nv-status").textContent = `第${n}話を書いています…（30秒ほど）`;
+    novelBusy = true; renderNovel(); $("#nv-status").textContent = `第${n}話を書いています…（1分ほど）`;
     try {
-      const v = await sample.json(prompt, { cache: false });
+      const v = await sample.json(prompt, { cache: false, modelTier: "complex" });
       if (!v || typeof v.text !== "string" || v.text.length < 200) throw new Error("bad");
       const doc = {
         date: today, createdAt: Date.now(), level, genre: "novel", novelId: novel.nid, chapter: n,
@@ -2408,11 +2408,11 @@ Return JSON only: {"title": string (a short chapter title), "text": string (para
     try {
       const v = await sample.json(`Plan an ORIGINAL serialized novel for an English learner (a Japanese university student, CEFR B1, economics major, who dreams of working at a global tech company). Do not copy or imitate any existing book or character. Type: ${$("#nv-genre").value}.
 The plot must be genuinely gripping for an adult reader, with a mystery or goal that builds across the whole story, turning points around chapters 10 and 20, and a satisfying ending. Each chapter will be about 500 words and released one per day.
-Return JSON only: {"title": string, "tagline_ja": string (one-line Japanese teaser with no spoilers), "premise": string (2-3 English sentences), "characters": [{"name": string, "desc": string (English, short), "desc_ja": string (Japanese, short, no spoilers)}] (4-6), "beats": [string] (exactly 30, one English sentence each saying what happens in that chapter)}`, { cache: false });
+Return JSON only: {"title": string, "tagline_ja": string (one-line Japanese teaser with no spoilers), "premise": string (2-3 English sentences), "characters": [{"name": string, "desc": string (English, short), "desc_ja": string (Japanese, short, no spoilers)}] (4-6), "beats": [string] (exactly 30, one English sentence each saying what happens in that chapter), "style": string (2-3 English sentences fixing the narrator, tense, tone and voice for every chapter)}`, { cache: false, modelTier: "complex" });
       if (!v || !Array.isArray(v.beats) || v.beats.length < 10 || typeof v.title !== "string") throw new Error("bad");
       await db.doc("novel/current").set({ nid: "n" + Date.now(), createdAt: Date.now(), title: v.title.slice(0, 120), tagline_ja: String(v.tagline_ja || "").slice(0, 200), premise: String(v.premise || "").slice(0, 800),
         characters: (Array.isArray(v.characters) ? v.characters : []).slice(0, 8).map((c) => ({ name: String(c.name || "").slice(0, 60), desc: String(c.desc || "").slice(0, 200), desc_ja: String(c.desc_ja || "").slice(0, 200) })),
-        beats: v.beats.slice(0, 40).map((x) => String(x).slice(0, 400)), summary: "", lastChapter: 0, lastDate: "" });
+        beats: v.beats.slice(0, 40).map((x) => String(x).slice(0, 400)), style: String(v.style || "").slice(0, 800), summary: "", lastChapter: 0, lastDate: "" });
       $("#nv-new-box").open = false; $("#nv-status").textContent = "新しい小説ができました。第1話を解放できます。";
     } catch (e) { $("#nv-status").textContent = "あらすじを作れませんでした。もう一度押してください。"; }
     finally { b.disabled = false; }
